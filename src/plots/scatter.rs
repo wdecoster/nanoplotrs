@@ -106,7 +106,7 @@ pub fn create_log_scatter(
     let plots = vec![Plot::Scatter(plot)];
     let layout = Layout::auto_from_plots(&plots)
         .with_title(plot_title)
-        .with_x_label(&format!("{} (log10)", x_label))
+        .with_x_label(format!("{} (log10)", x_label))
         .with_y_label(y_label);
 
     let svg = SvgBackend.render_scene(&render_multiple(plots, layout));

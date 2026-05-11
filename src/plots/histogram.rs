@@ -10,6 +10,7 @@ use kuva::render::plots::Plot;
 use kuva::render::render::render_multiple;
 
 /// Create a standard histogram
+#[allow(clippy::too_many_arguments)]
 pub fn create_histogram(
     data: &[f64],
     filename: &str,
@@ -130,7 +131,7 @@ pub fn create_log_histogram(
     let plots = vec![Plot::Histogram(hist)];
     let layout = Layout::auto_from_plots(&plots)
         .with_title(plot_title)
-        .with_x_label(&format!("{} (log10)", x_label))
+        .with_x_label(format!("{} (log10)", x_label))
         .with_y_label(y_label);
 
     let svg = SvgBackend.render_scene(&render_multiple(plots, layout));
@@ -180,7 +181,7 @@ pub fn create_log_weighted_histogram(
     let plots = vec![Plot::Histogram(hist)];
     let layout = Layout::auto_from_plots(&plots)
         .with_title(plot_title)
-        .with_x_label(&format!("{} (log10)", x_label))
+        .with_x_label(format!("{} (log10)", x_label))
         .with_y_label(y_label);
 
     let svg = SvgBackend.render_scene(&render_multiple(plots, layout));
