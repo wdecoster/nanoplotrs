@@ -30,7 +30,11 @@ pub struct GeneratedPlot {
 }
 
 /// Generate all plots for the given reads
-pub fn generate_plots(reads: &[ReadMetrics], stats: &Stats, config: &Config) -> Result<Vec<GeneratedPlot>> {
+pub fn generate_plots(
+    reads: &[ReadMetrics],
+    stats: &Stats,
+    config: &Config,
+) -> Result<Vec<GeneratedPlot>> {
     let mut plots = Vec::new();
 
     info!("Generating plots for {} reads", reads.len());
@@ -47,7 +51,11 @@ pub fn generate_plots(reads: &[ReadMetrics], stats: &Stats, config: &Config) -> 
         "Number of reads",
         None, // no weights
         config,
-        if config.show_n50 { Some(stats.n50 as f64) } else { None },
+        if config.show_n50 {
+            Some(stats.n50 as f64)
+        } else {
+            None
+        },
     )?);
 
     // Weighted histogram (base counts)
@@ -58,11 +66,19 @@ pub fn generate_plots(reads: &[ReadMetrics], stats: &Stats, config: &Config) -> 
         "Read length",
         "Number of bases",
         config,
-        if config.show_n50 { Some(stats.n50 as f64) } else { None },
+        if config.show_n50 {
+            Some(stats.n50 as f64)
+        } else {
+            None
+        },
     )?);
 
     // Log-transformed histograms
-    let log_lengths: Vec<f64> = lengths.iter().filter(|&&l| l > 0.0).map(|&l| l.log10()).collect();
+    let log_lengths: Vec<f64> = lengths
+        .iter()
+        .filter(|&&l| l > 0.0)
+        .map(|&l| l.log10())
+        .collect();
 
     if !log_lengths.is_empty() {
         plots.push(histogram::create_log_histogram(
@@ -124,9 +140,13 @@ pub fn generate_plots(reads: &[ReadMetrics], stats: &Stats, config: &Config) -> 
     // Alignment-specific plots (Phase 2)
     if config.has_alignment {
         // Mapping quality scatter
-        let reads_with_mapq: Vec<_> = reads.iter().filter(|r| r.mapping_quality.is_some()).collect();
+        let reads_with_mapq: Vec<_> = reads
+            .iter()
+            .filter(|r| r.mapping_quality.is_some())
+            .collect();
         if !reads_with_mapq.is_empty() {
-            let lengths_with_mapq: Vec<f64> = reads_with_mapq.iter().map(|r| r.length as f64).collect();
+            let lengths_with_mapq: Vec<f64> =
+                reads_with_mapq.iter().map(|r| r.length as f64).collect();
             let mapping_quals: Vec<f64> = reads_with_mapq
                 .iter()
                 .filter_map(|r| r.mapping_quality.map(|q| q as f64))
@@ -172,7 +192,10 @@ pub fn generate_plots(reads: &[ReadMetrics], stats: &Stats, config: &Config) -> 
             )?);
 
             // Length vs Percent Identity scatter
-            let reads_with_pi: Vec<_> = reads.iter().filter(|r| r.percent_identity.is_some()).collect();
+            let reads_with_pi: Vec<_> = reads
+                .iter()
+                .filter(|r| r.percent_identity.is_some())
+                .collect();
             let lengths_with_pi: Vec<f64> = reads_with_pi.iter().map(|r| r.length as f64).collect();
 
             plots.push(scatter::create_scatter(
@@ -245,8 +268,9 @@ pub fn save_plot(svg: &str, base_name: &str, config: &Config) -> Result<PathBuf>
 /// Convert SVG string to PNG bytes
 fn svg_to_png(svg: &str, dpi: u32) -> Result<Vec<u8>> {
     let opt = usvg::Options::default();
-    let tree = usvg::Tree::from_str(svg, &opt)
-        .map_err(|e| crate::error::NanoPlotError::PlotError(format!("Failed to parse SVG: {}", e)))?;
+    let tree = usvg::Tree::from_str(svg, &opt).map_err(|e| {
+        crate::error::NanoPlotError::PlotError(format!("Failed to parse SVG: {}", e))
+    })?;
 
     let size = tree.size();
     let scale = dpi as f32 / 96.0; // Base DPI is 96
@@ -267,15 +291,18 @@ fn svg_to_png(svg: &str, dpi: u32) -> Result<Vec<u8>> {
 /// Convert SVG string to PDF bytes
 fn svg_to_pdf(svg: &str) -> Result<Vec<u8>> {
     let opt = usvg::Options::default();
-    let tree = usvg::Tree::from_str(svg, &opt)
-        .map_err(|e| crate::error::NanoPlotError::PlotError(format!("Failed to parse SVG: {}", e)))?;
+    let tree = usvg::Tree::from_str(svg, &opt).map_err(|e| {
+        crate::error::NanoPlotError::PlotError(format!("Failed to parse SVG: {}", e))
+    })?;
 
     let pdf = svg2pdf::to_pdf(
         &tree,
         svg2pdf::ConversionOptions::default(),
         svg2pdf::PageOptions::default(),
     )
-    .map_err(|e| crate::error::NanoPlotError::PlotError(format!("Failed to convert to PDF: {}", e)))?;
+    .map_err(|e| {
+        crate::error::NanoPlotError::PlotError(format!("Failed to convert to PDF: {}", e))
+    })?;
 
     Ok(pdf)
 }

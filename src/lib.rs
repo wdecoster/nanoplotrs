@@ -43,16 +43,13 @@ use std::fs;
 /// Run NanoPlot with the given CLI arguments
 pub fn run(cli: Cli) -> Result<()> {
     // Validate input
-    let (file_type, files) = cli
-        .get_input()
-        .ok_or(NanoPlotError::NoInputFiles)?;
+    let (file_type, files) = cli.get_input().ok_or(NanoPlotError::NoInputFiles)?;
 
     info!("Processing {} {:?} file(s)", files.len(), file_type);
 
     // Create output directory
-    fs::create_dir_all(&cli.outdir).map_err(|e| {
-        NanoPlotError::OutputDirError(format!("{}: {}", cli.outdir.display(), e))
-    })?;
+    fs::create_dir_all(&cli.outdir)
+        .map_err(|e| NanoPlotError::OutputDirError(format!("{}: {}", cli.outdir.display(), e)))?;
 
     // Build configuration
     let mut config = Config::from_cli(&cli);

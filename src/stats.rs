@@ -64,7 +64,8 @@ impl Stats {
             None
         };
 
-        let percent_identities: Vec<f64> = reads.iter().filter_map(|r| r.percent_identity).collect();
+        let percent_identities: Vec<f64> =
+            reads.iter().filter_map(|r| r.percent_identity).collect();
         let (mean_percent_identity, median_percent_identity) = if !percent_identities.is_empty() {
             (
                 Some(percent_identities.iter().sum::<f64>() / percent_identities.len() as f64),
@@ -114,14 +115,44 @@ impl Stats {
         let mut output = String::new();
 
         writeln!(output, "General summary:").unwrap();
-        writeln!(output, "Number of reads:          {:>15}", format_number(self.num_reads as u64)).unwrap();
-        writeln!(output, "Total bases:              {:>15}", format_number(self.total_bases)).unwrap();
-        writeln!(output, "Median read length:       {:>15.1}", self.median_length).unwrap();
-        writeln!(output, "Mean read length:         {:>15.1}", self.mean_length).unwrap();
-        writeln!(output, "STDEV read length:        {:>15.1}", self.stdev_length).unwrap();
+        writeln!(
+            output,
+            "Number of reads:          {:>15}",
+            format_number(self.num_reads as u64)
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "Total bases:              {:>15}",
+            format_number(self.total_bases)
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "Median read length:       {:>15.1}",
+            self.median_length
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "Mean read length:         {:>15.1}",
+            self.mean_length
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "STDEV read length:        {:>15.1}",
+            self.stdev_length
+        )
+        .unwrap();
         writeln!(output, "Min read length:          {:>15}", self.min_length).unwrap();
         writeln!(output, "Max read length:          {:>15}", self.max_length).unwrap();
-        writeln!(output, "Read length N50:          {:>15}", format_number(self.n50)).unwrap();
+        writeln!(
+            output,
+            "Read length N50:          {:>15}",
+            format_number(self.n50)
+        )
+        .unwrap();
 
         if let Some(mean_q) = self.mean_quality {
             writeln!(output, "Mean read quality:        {:>15.1}", mean_q).unwrap();
@@ -133,7 +164,12 @@ impl Stats {
         if let Some(aligned) = self.total_aligned_bases {
             writeln!(output).unwrap();
             writeln!(output, "Alignment summary:").unwrap();
-            writeln!(output, "Total aligned bases:      {:>15}", format_number(aligned)).unwrap();
+            writeln!(
+                output,
+                "Total aligned bases:      {:>15}",
+                format_number(aligned)
+            )
+            .unwrap();
         }
         if let Some(mean_pi) = self.mean_percent_identity {
             writeln!(output, "Mean percent identity:    {:>15.2}%", mean_pi).unwrap();
@@ -299,10 +335,18 @@ pub fn write_raw_data(reads: &[ReadMetrics], path: &Path) -> Result<()> {
             "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
             read.read_id.as_deref().unwrap_or(""),
             read.length,
-            read.quality.map(|q| format!("{:.2}", q)).unwrap_or_default(),
-            read.aligned_length.map(|l| l.to_string()).unwrap_or_default(),
-            read.mapping_quality.map(|q| q.to_string()).unwrap_or_default(),
-            read.percent_identity.map(|p| format!("{:.2}", p)).unwrap_or_default(),
+            read.quality
+                .map(|q| format!("{:.2}", q))
+                .unwrap_or_default(),
+            read.aligned_length
+                .map(|l| l.to_string())
+                .unwrap_or_default(),
+            read.mapping_quality
+                .map(|q| q.to_string())
+                .unwrap_or_default(),
+            read.percent_identity
+                .map(|p| format!("{:.2}", p))
+                .unwrap_or_default(),
             read.channel_id.map(|c| c.to_string()).unwrap_or_default(),
             read.start_time.map(|t| t.to_rfc3339()).unwrap_or_default(),
             read.barcode.as_deref().unwrap_or(""),
@@ -317,10 +361,7 @@ mod tests {
     use super::*;
 
     fn make_reads(lengths: &[u32]) -> Vec<ReadMetrics> {
-        lengths
-            .iter()
-            .map(|&l| ReadMetrics::new(None, l))
-            .collect()
+        lengths.iter().map(|&l| ReadMetrics::new(None, l)).collect()
     }
 
     #[test]

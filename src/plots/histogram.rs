@@ -27,7 +27,10 @@ pub fn create_histogram(
     let max_val = data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
 
     // Add some padding
-    let range = (min_val - (max_val - min_val) * 0.05, max_val + (max_val - min_val) * 0.05);
+    let range = (
+        min_val - (max_val - min_val) * 0.05,
+        max_val + (max_val - min_val) * 0.05,
+    );
 
     // Create histogram using kuva
     let hist = Histogram::new()
@@ -71,7 +74,10 @@ pub fn create_weighted_histogram(
     // Calculate range
     let min_val = data.iter().cloned().fold(f64::INFINITY, f64::min);
     let max_val = data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-    let range = (min_val - (max_val - min_val) * 0.05, max_val + (max_val - min_val) * 0.05);
+    let range = (
+        min_val - (max_val - min_val) * 0.05,
+        max_val + (max_val - min_val) * 0.05,
+    );
 
     // Use regular histogram for display, with a note that counts represent bases
     // Since kuva doesn't support weighted histograms directly, we'll approximate
@@ -149,10 +155,16 @@ pub fn create_log_weighted_histogram(
     let plot_title = config.title.as_deref().unwrap_or(title);
 
     // Transform to log scale
-    let log_data: Vec<f64> = data.iter().filter(|&&x| x > 0.0).map(|&x| x.log10()).collect();
+    let log_data: Vec<f64> = data
+        .iter()
+        .filter(|&&x| x > 0.0)
+        .map(|&x| x.log10())
+        .collect();
 
     if log_data.is_empty() {
-        return Err(crate::error::NanoPlotError::PlotError("No valid data for log histogram".into()));
+        return Err(crate::error::NanoPlotError::PlotError(
+            "No valid data for log histogram".into(),
+        ));
     }
 
     let min_val = log_data.iter().cloned().fold(f64::INFINITY, f64::min);

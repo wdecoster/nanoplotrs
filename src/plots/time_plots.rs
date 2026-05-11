@@ -5,8 +5,8 @@ use crate::error::Result;
 use crate::plots::{save_plot, GeneratedPlot};
 use chrono::{DateTime, Utc};
 use kuva::backend::svg::SvgBackend;
-use kuva::plot::LinePlot;
 use kuva::plot::scatter::ScatterPlot;
+use kuva::plot::LinePlot;
 use kuva::render::layout::Layout;
 use kuva::render::plots::Plot;
 use kuva::render::render::render_multiple;
@@ -20,17 +20,12 @@ const TIME_BIN_SECONDS: i64 = 600; // 10 minutes
 const MAX_TIME_POINTS: usize = 10_000;
 
 /// Generate all time-based plots
-pub fn generate_time_plots(
-    reads: &[ReadMetrics],
-    config: &Config,
-) -> Result<Vec<GeneratedPlot>> {
+pub fn generate_time_plots(reads: &[ReadMetrics], config: &Config) -> Result<Vec<GeneratedPlot>> {
     let mut plots = Vec::new();
 
     // Filter reads with valid start times
-    let reads_with_time: Vec<&ReadMetrics> = reads
-        .iter()
-        .filter(|r| r.start_time.is_some())
-        .collect();
+    let reads_with_time: Vec<&ReadMetrics> =
+        reads.iter().filter(|r| r.start_time.is_some()).collect();
 
     if reads_with_time.is_empty() {
         return Ok(plots);
@@ -44,13 +39,25 @@ pub fn generate_time_plots(
         .unwrap();
 
     // Cumulative yield over time (Gigabases)
-    plots.push(create_cumulative_yield_plot(&reads_with_time, min_time, config)?);
+    plots.push(create_cumulative_yield_plot(
+        &reads_with_time,
+        min_time,
+        config,
+    )?);
 
     // Cumulative read count over time
-    plots.push(create_cumulative_reads_plot(&reads_with_time, min_time, config)?);
+    plots.push(create_cumulative_reads_plot(
+        &reads_with_time,
+        min_time,
+        config,
+    )?);
 
     // Number of reads over time (binned)
-    plots.push(create_reads_over_time_plot(&reads_with_time, min_time, config)?);
+    plots.push(create_reads_over_time_plot(
+        &reads_with_time,
+        min_time,
+        config,
+    )?);
 
     // Active pores over time (if channel data available)
     let reads_with_channel: Vec<&ReadMetrics> = reads_with_time
@@ -60,7 +67,11 @@ pub fn generate_time_plots(
         .collect();
 
     if !reads_with_channel.is_empty() {
-        plots.push(create_active_pores_plot(&reads_with_channel, min_time, config)?);
+        plots.push(create_active_pores_plot(
+            &reads_with_channel,
+            min_time,
+            config,
+        )?);
     }
 
     Ok(plots)
@@ -91,9 +102,7 @@ fn create_cumulative_yield_plot(
     // Downsample if too many points
     let data = downsample_time_data(data, MAX_TIME_POINTS);
 
-    let plot = LinePlot::new()
-        .with_data(data)
-        .with_color(&config.color);
+    let plot = LinePlot::new().with_data(data).with_color(&config.color);
 
     let plots = vec![Plot::Line(plot)];
     let layout = Layout::auto_from_plots(&plots)
@@ -134,9 +143,7 @@ fn create_cumulative_reads_plot(
     // Downsample if too many points
     let data = downsample_time_data(data, MAX_TIME_POINTS);
 
-    let plot = LinePlot::new()
-        .with_data(data)
-        .with_color(&config.color);
+    let plot = LinePlot::new().with_data(data).with_color(&config.color);
 
     let plots = vec![Plot::Line(plot)];
     let layout = Layout::auto_from_plots(&plots)

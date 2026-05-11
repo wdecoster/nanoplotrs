@@ -43,7 +43,11 @@ pub fn create_yield_by_length(
     };
 
     // Create scatter plot
-    let data: Vec<(f64, f64)> = x_data.iter().zip(y_data.iter()).map(|(&x, &y)| (x, y)).collect();
+    let data: Vec<(f64, f64)> = x_data
+        .iter()
+        .zip(y_data.iter())
+        .map(|(&x, &y)| (x, y))
+        .collect();
 
     let plot = ScatterPlot::new()
         .with_data(data)

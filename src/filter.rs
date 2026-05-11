@@ -78,7 +78,10 @@ fn drop_outliers(mut reads: Vec<ReadMetrics>) -> Vec<ReadMetrics> {
 
     // Calculate 99.9th percentile
     let idx = (lengths.len() as f64 * 0.999) as usize;
-    let cutoff = lengths.get(idx.min(lengths.len() - 1)).copied().unwrap_or(u32::MAX);
+    let cutoff = lengths
+        .get(idx.min(lengths.len() - 1))
+        .copied()
+        .unwrap_or(u32::MAX);
 
     let before = reads.len();
     reads.retain(|r| r.length <= cutoff);

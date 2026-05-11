@@ -4,7 +4,7 @@ use crate::config::Config;
 use crate::error::Result;
 use crate::plots::GeneratedPlot;
 use crate::stats::Stats;
-use maud::{html, Markup, DOCTYPE, PreEscaped};
+use maud::{html, Markup, PreEscaped, DOCTYPE};
 use std::fs::File;
 use std::io::Write;
 
