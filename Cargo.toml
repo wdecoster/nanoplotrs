@@ -1,0 +1,38 @@
+[package]
+name = "nanoplot"
+version = "0.1.0"
+edition = "2021"
+authors = ["Wouter De Coster"]
+description = "Plotting and statistics for long read sequencing data"
+license = "MIT"
+repository = "https://github.com/wdecoster/nanoplotrs"
+keywords = ["nanopore", "bioinformatics", "sequencing", "plotting"]
+categories = ["science", "command-line-utilities"]
+
+[[bin]]
+name = "nanoplot"
+path = "src/main.rs"
+
+[dependencies]
+nanoget-rs = { path = "../nanoget-rs" }
+clap = { version = "4.6", features = ["derive"] }
+kuva = { version = "0.1", features = ["png", "pdf"] }
+anyhow = "1.0"
+thiserror = "2.0"
+log = "0.4"
+env_logger = "0.11"
+maud = "0.26"
+rayon = "1.12"
+rand = "0.8"
+resvg = "0.45"
+usvg = "0.45"
+tiny-skia = "0.11"
+svg2pdf = "0.13"
+chrono = "0.4"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+lto = true
+codegen-units = 1
