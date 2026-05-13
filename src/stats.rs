@@ -110,79 +110,7 @@ impl Stats {
         }
     }
 
-    /// Format statistics as a human-readable string
-    pub fn to_string_report(&self) -> String {
-        let mut output = String::new();
-
-        writeln!(output, "General summary:").unwrap();
-        writeln!(
-            output,
-            "Number of reads:          {:>15}",
-            format_number(self.num_reads as u64)
-        )
-        .unwrap();
-        writeln!(
-            output,
-            "Total bases:              {:>15}",
-            format_number(self.total_bases)
-        )
-        .unwrap();
-        writeln!(
-            output,
-            "Median read length:       {:>15.1}",
-            self.median_length
-        )
-        .unwrap();
-        writeln!(
-            output,
-            "Mean read length:         {:>15.1}",
-            self.mean_length
-        )
-        .unwrap();
-        writeln!(
-            output,
-            "STDEV read length:        {:>15.1}",
-            self.stdev_length
-        )
-        .unwrap();
-        writeln!(output, "Min read length:          {:>15}", self.min_length).unwrap();
-        writeln!(output, "Max read length:          {:>15}", self.max_length).unwrap();
-        writeln!(
-            output,
-            "Read length N50:          {:>15}",
-            format_number(self.n50)
-        )
-        .unwrap();
-
-        if let Some(mean_q) = self.mean_quality {
-            writeln!(output, "Mean read quality:        {:>15.1}", mean_q).unwrap();
-        }
-        if let Some(median_q) = self.median_quality {
-            writeln!(output, "Median read quality:      {:>15.1}", median_q).unwrap();
-        }
-
-        if let Some(aligned) = self.total_aligned_bases {
-            writeln!(output).unwrap();
-            writeln!(output, "Alignment summary:").unwrap();
-            writeln!(
-                output,
-                "Total aligned bases:      {:>15}",
-                format_number(aligned)
-            )
-            .unwrap();
-        }
-        if let Some(mean_pi) = self.mean_percent_identity {
-            writeln!(output, "Mean percent identity:    {:>15.2}%", mean_pi).unwrap();
-        }
-        if let Some(median_pi) = self.median_percent_identity {
-            writeln!(output, "Median percent identity:  {:>15.2}%", median_pi).unwrap();
-        }
-
-        output
-    }
-
-    /// Format statistics as TSV
-    pub fn to_tsv(&self) -> String {
+    fn to_tsv(&self) -> String {
         let mut output = String::new();
 
         writeln!(output, "Metric\tValue").unwrap();
@@ -214,16 +142,9 @@ impl Stats {
         output
     }
 
-    /// Write statistics to file
-    pub fn write_to_file(&self, path: &Path, as_tsv: bool) -> Result<()> {
-        let content = if as_tsv {
-            self.to_tsv()
-        } else {
-            self.to_string_report()
-        };
-
+    pub fn write_to_file(&self, path: &Path) -> Result<()> {
         let mut file = File::create(path)?;
-        file.write_all(content.as_bytes())?;
+        file.write_all(self.to_tsv().as_bytes())?;
         Ok(())
     }
 }
@@ -302,22 +223,6 @@ fn std_dev(values: &[u32], mean: f64) -> f64 {
     variance.sqrt()
 }
 
-/// Format large numbers with commas
-fn format_number(n: u64) -> String {
-    let s = n.to_string();
-    let mut result = String::new();
-    let chars: Vec<char> = s.chars().collect();
-
-    for (i, c) in chars.iter().enumerate() {
-        if i > 0 && (chars.len() - i).is_multiple_of(3) {
-            result.push(',');
-        }
-        result.push(*c);
-    }
-
-    result
-}
-
 /// Write raw read data to TSV file
 pub fn write_raw_data(reads: &[ReadMetrics], path: &Path) -> Result<()> {
     let mut file = File::create(path)?;
@@ -392,12 +297,5 @@ mod tests {
         assert_eq!(median(&[1, 2, 3, 4, 5]), 3.0);
         assert_eq!(median(&[1, 2, 3, 4]), 2.5);
         assert_eq!(median(&[5]), 5.0);
-    }
-
-    #[test]
-    fn test_format_number() {
-        assert_eq!(format_number(1000), "1,000");
-        assert_eq!(format_number(1000000), "1,000,000");
-        assert_eq!(format_number(123), "123");
     }
 }

@@ -38,14 +38,38 @@ use crate::report::generate_html_report;
 use crate::stats::{write_raw_data, Stats};
 use log::info;
 use nanoget_rs::{extract_metrics, ExtractArgs, MetricsCollection};
+use rayon::ThreadPoolBuilder;
 use std::fs;
 
 /// Run NanoPlot with the given CLI arguments
 pub fn run(cli: Cli) -> Result<()> {
-    // Validate input
-    let (file_type, files) = cli.get_input().ok_or(NanoPlotError::NoInputFiles)?;
+    let files = cli.get_input();
+    if files.is_empty() {
+        return Err(NanoPlotError::NoInputFiles);
+    }
 
-    info!("Processing {} {:?} file(s)", files.len(), file_type);
+    let is_stdin = files.len() == 1 && files[0].as_os_str() == "-";
+
+    // For real files, sniff format and verify all files are the same type.
+    // For stdin, extract_metrics handles detection internally.
+    let file_type = if is_stdin {
+        nanoget_rs::FileType::Fastq // placeholder; overridden inside extract_metrics
+    } else {
+        let ft = nanoget_rs::FileType::sniff(&files[0])?;
+        for f in &files[1..] {
+            let fft = nanoget_rs::FileType::sniff(f)?;
+            if fft != ft {
+                return Err(NanoPlotError::MixedFileTypes(
+                    format!("{:?}", ft),
+                    format!("{:?}", fft),
+                ));
+            }
+        }
+        ft
+    };
+    let files = files.to_vec();
+
+    info!("Processing {} file(s)", files.len());
 
     // Create output directory
     fs::create_dir_all(&cli.outdir)
@@ -55,7 +79,6 @@ pub fn run(cli: Cli) -> Result<()> {
     let mut config = Config::from_cli(&cli);
     let filter_settings = FilterSettings::from_cli(&cli);
 
-    // Extract metrics using nanoget-rs
     let extract_args = ExtractArgs {
         files,
         file_type,
@@ -69,60 +92,62 @@ pub fn run(cli: Cli) -> Result<()> {
         names: None,
     };
 
-    let metrics: MetricsCollection = extract_metrics(&extract_args)?;
-    info!("Extracted metrics for {} reads", metrics.reads.len());
+    // One pool shared by extraction (file- and chromosome-level) and plot generation.
+    let pool = ThreadPoolBuilder::new()
+        .num_threads(cli.threads)
+        .build()
+        .map_err(|e| NanoPlotError::PlotError(e.to_string()))?;
 
-    if metrics.reads.is_empty() {
-        return Err(NanoPlotError::NoReadsAfterFilter);
-    }
+    pool.install(|| -> Result<()> {
+        let metrics: MetricsCollection = extract_metrics(&extract_args)?;
+        info!("Extracted metrics for {} reads", metrics.reads.len());
 
-    // Update config based on data availability
-    config.has_quality = metrics.reads.iter().any(|r| r.quality.is_some());
-    config.has_time_data = metrics.reads.iter().any(|r| r.start_time.is_some());
+        if metrics.reads.is_empty() {
+            return Err(NanoPlotError::NoReadsAfterFilter);
+        }
 
-    // Calculate stats before filtering
-    let stats_before = if filter_settings.has_filters() {
-        Some(Stats::compute(&metrics.reads))
-    } else {
-        None
-    };
+        // Determine which data types are present from the actual metrics.
+        for r in &metrics.reads {
+            config.has_quality |= r.quality.is_some();
+            config.has_time_data |= r.start_time.is_some();
+            config.has_alignment |= r.aligned_length.is_some();
+            if config.has_quality && config.has_time_data && config.has_alignment {
+                break;
+            }
+        }
 
-    // Apply filters
-    let filtered_reads = filter_reads(metrics.reads, &filter_settings);
+        let stats_before = if filter_settings.has_filters() {
+            Some(Stats::compute(&metrics.reads))
+        } else {
+            None
+        };
 
-    if filtered_reads.is_empty() {
-        return Err(NanoPlotError::NoReadsAfterFilter);
-    }
+        let filtered_reads = filter_reads(metrics.reads, &filter_settings);
 
-    // Calculate final statistics
-    let stats = Stats::compute(&filtered_reads);
+        if filtered_reads.is_empty() {
+            return Err(NanoPlotError::NoReadsAfterFilter);
+        }
 
-    // Write stats file
-    let stats_filename = if config.tsv_stats {
-        "NanoStats.tsv"
-    } else {
-        "NanoStats.txt"
-    };
-    stats.write_to_file(&config.output_path(stats_filename), config.tsv_stats)?;
-    info!("Wrote statistics to {}", stats_filename);
+        let stats = Stats::compute(&filtered_reads);
 
-    // Write raw data if requested
-    if config.raw {
-        write_raw_data(&filtered_reads, &config.output_path("NanoPlot-data.tsv"))?;
-        info!("Wrote raw data to NanoPlot-data.tsv");
-    }
+        stats.write_to_file(&config.output_path("NanoStats.tsv"))?;
+        info!("Wrote statistics to NanoStats.tsv");
 
-    // Generate plots
-    let plots = generate_plots(&filtered_reads, &stats, &config)?;
+        if config.raw {
+            write_raw_data(&filtered_reads, &config.output_path("NanoPlot-data.tsv"))?;
+            info!("Wrote raw data to NanoPlot-data.tsv");
+        }
 
-    // Generate HTML report
-    generate_html_report(&plots, &stats, stats_before.as_ref(), &config)?;
-    info!("Generated HTML report: NanoPlot-report.html");
+        let plots = generate_plots(&filtered_reads, &stats, &config)?;
 
-    info!(
-        "NanoPlot finished. Output written to {}",
-        cli.outdir.display()
-    );
+        generate_html_report(&plots, &stats, stats_before.as_ref(), &config)?;
+        info!("Generated HTML report: NanoPlot-report.html");
 
-    Ok(())
+        info!(
+            "NanoPlot finished. Output written to {}",
+            cli.outdir.display()
+        );
+
+        Ok(())
+    })
 }

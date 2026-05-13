@@ -30,8 +30,6 @@ pub struct Config {
     pub has_time_data: bool,
     /// Export raw data
     pub raw: bool,
-    /// TSV stats format
-    pub tsv_stats: bool,
     /// Show log-transformed length in scatter plots
     pub loglength: bool,
 }
@@ -48,11 +46,10 @@ impl Config {
             format: cli.format.clone(),
             dpi: cli.dpi,
             show_n50: cli.n50_marker,
-            has_quality: false, // Will be determined after data extraction
-            has_alignment: cli.has_alignment_data(),
-            has_time_data: false, // Will be determined after data extraction
+            has_quality: false,   // determined after data extraction
+            has_alignment: false, // determined after file type detection
+            has_time_data: false, // determined after data extraction
             raw: cli.raw,
-            tsv_stats: cli.tsv_stats,
             loglength: cli.loglength,
         }
     }

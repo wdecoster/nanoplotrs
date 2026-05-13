@@ -10,30 +10,9 @@ use std::path::PathBuf;
 #[command(version)]
 #[command(about = "Creates various plots for long read sequencing data", long_about = None)]
 pub struct Cli {
-    // Input options (mutually exclusive in groups)
-    /// Input FASTQ file(s)
-    #[arg(long, value_name = "FILE", num_args = 1..)]
-    pub fastq: Option<Vec<PathBuf>>,
-
-    /// Input FASTA file(s)
-    #[arg(long, value_name = "FILE", num_args = 1..)]
-    pub fasta: Option<Vec<PathBuf>>,
-
-    /// Input BAM file(s)
-    #[arg(long, value_name = "FILE", num_args = 1..)]
-    pub bam: Option<Vec<PathBuf>>,
-
-    /// Input CRAM file(s)
-    #[arg(long, value_name = "FILE", num_args = 1..)]
-    pub cram: Option<Vec<PathBuf>>,
-
-    /// Input unaligned BAM file(s)
-    #[arg(long, value_name = "FILE", num_args = 1..)]
-    pub ubam: Option<Vec<PathBuf>>,
-
-    /// Input sequencing summary TSV file(s)
-    #[arg(long, value_name = "FILE", num_args = 1..)]
-    pub summary: Option<Vec<PathBuf>>,
+    /// Input file(s) — format auto-detected from content (FASTQ, FASTA, BAM, CRAM, uBAM, summary TSV)
+    #[arg(short = 'i', long = "input", value_name = "FILE", num_args = 1..)]
+    pub input: Vec<PathBuf>,
 
     // Output options
     /// Output directory
@@ -99,41 +78,14 @@ pub struct Cli {
     #[arg(long)]
     pub raw: bool,
 
-    /// Output stats in TSV format
-    #[arg(long)]
-    pub tsv_stats: bool,
-
     /// Verbose output
     #[arg(long)]
     pub verbose: bool,
 }
 
 impl Cli {
-    /// Get the input file type and files
-    pub fn get_input(&self) -> Option<(nanoget_rs::FileType, Vec<PathBuf>)> {
-        if let Some(files) = &self.fastq {
-            return Some((nanoget_rs::FileType::Fastq, files.clone()));
-        }
-        if let Some(files) = &self.fasta {
-            return Some((nanoget_rs::FileType::Fasta, files.clone()));
-        }
-        if let Some(files) = &self.bam {
-            return Some((nanoget_rs::FileType::Bam, files.clone()));
-        }
-        if let Some(files) = &self.cram {
-            return Some((nanoget_rs::FileType::Cram, files.clone()));
-        }
-        if let Some(files) = &self.ubam {
-            return Some((nanoget_rs::FileType::Ubam, files.clone()));
-        }
-        if let Some(files) = &self.summary {
-            return Some((nanoget_rs::FileType::Summary, files.clone()));
-        }
-        None
-    }
-
-    /// Check if we have alignment data (BAM/CRAM)
-    pub fn has_alignment_data(&self) -> bool {
-        self.bam.is_some() || self.cram.is_some()
+    /// Return the list of input files.
+    pub fn get_input(&self) -> &[PathBuf] {
+        &self.input
     }
 }

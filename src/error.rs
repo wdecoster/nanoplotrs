@@ -8,6 +8,9 @@ pub enum NanoPlotError {
     #[error("No input files provided")]
     NoInputFiles,
 
+    #[error("Mixed file formats: cannot combine {0} and {1} in a single run")]
+    MixedFileTypes(String, String),
+
     #[error("Failed to extract metrics: {0}")]
     ExtractionError(#[from] nanoget_rs::NanogetError),
 

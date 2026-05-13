@@ -10,8 +10,10 @@ use crate::error::Result;
 use crate::stats::Stats;
 use log::info;
 use nanoget_rs::ReadMetrics;
+use rayon::prelude::*;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 // Re-export for internal use
 use resvg;
@@ -35,198 +37,255 @@ pub fn generate_plots(
     stats: &Stats,
     config: &Config,
 ) -> Result<Vec<GeneratedPlot>> {
-    let mut plots = Vec::new();
-
     info!("Generating plots for {} reads", reads.len());
 
-    // Length histograms
-    let lengths: Vec<f64> = reads.iter().map(|r| r.length as f64).collect();
-
-    // Non-weighted histogram (read counts)
-    plots.push(histogram::create_histogram(
-        &lengths,
-        "Non_weightedHistogramReadlength",
-        "Non-weighted histogram of read lengths",
-        "Read length",
-        "Number of reads",
-        None, // no weights
-        config,
-        if config.show_n50 {
-            Some(stats.n50 as f64)
-        } else {
-            None
-        },
-    )?);
-
-    // Weighted histogram (base counts)
-    plots.push(histogram::create_weighted_histogram(
-        &lengths,
-        "WeightedHistogramReadlength",
-        "Weighted histogram of read lengths",
-        "Read length",
-        "Number of bases",
-        config,
-        if config.show_n50 {
-            Some(stats.n50 as f64)
-        } else {
-            None
-        },
-    )?);
-
-    // Log-transformed histograms
+    // Pre-compute shared data; wrap in Arc so closures can share without cloning the data.
+    let lengths = Arc::new(reads.iter().map(|r| r.length as f64).collect::<Vec<_>>());
     let log_lengths: Vec<f64> = lengths
         .iter()
         .filter(|&&l| l > 0.0)
         .map(|&l| l.log10())
         .collect();
+    let n50_marker = if config.show_n50 {
+        Some(stats.n50 as f64)
+    } else {
+        None
+    };
 
-    if !log_lengths.is_empty() {
-        plots.push(histogram::create_log_histogram(
-            &log_lengths,
-            "Non_weightedLogTransformed_HistogramReadlength",
-            "Non-weighted histogram of read lengths after log transformation",
-            "Read length",
-            "Number of reads",
-            config,
-        )?);
+    type Task = Box<dyn FnOnce() -> Result<GeneratedPlot> + Send>;
+    let mut tasks: Vec<Task> = Vec::new();
 
-        plots.push(histogram::create_log_weighted_histogram(
-            &lengths,
-            "WeightedLogTransformed_HistogramReadlength",
-            "Weighted histogram of read lengths after log transformation",
-            "Read length",
-            "Number of bases (log scale)",
-            config,
-        )?);
+    // Non-weighted histogram
+    {
+        let (lengths, config) = (Arc::clone(&lengths), config.clone());
+        tasks.push(Box::new(move || {
+            histogram::create_histogram(
+                &lengths,
+                "Non_weightedHistogramReadlength",
+                "Non-weighted histogram of read lengths",
+                "Read length",
+                "Number of reads",
+                None,
+                &config,
+                n50_marker,
+            )
+        }));
     }
 
-    // Yield by length plot
-    plots.push(yield_plot::create_yield_by_length(
-        &lengths,
-        "Yield_By_Length",
-        config,
-    )?);
-
-    // Length vs Quality scatter (if quality data available)
-    let reads_with_qual: Vec<_> = reads.iter().filter(|r| r.quality.is_some()).collect();
-    if !reads_with_qual.is_empty() {
-        let lengths_with_qual: Vec<f64> = reads_with_qual.iter().map(|r| r.length as f64).collect();
-        let qualities: Vec<f64> = reads_with_qual.iter().filter_map(|r| r.quality).collect();
-
-        plots.push(scatter::create_scatter(
-            &lengths_with_qual,
-            &qualities,
-            "LengthvsQualityScatterPlot",
-            "Read length vs Average read quality",
-            "Read length",
-            "Average read quality",
-            config,
-        )?);
-
-        // Log-transformed version if --loglength is set
-        if config.loglength {
-            plots.push(scatter::create_log_scatter(
-                &lengths_with_qual,
-                &qualities,
-                "LengthvsQualityScatterPlot_loglength",
-                "Read length vs Average read quality (log transformed)",
+    // Weighted histogram
+    {
+        let (lengths, config) = (Arc::clone(&lengths), config.clone());
+        tasks.push(Box::new(move || {
+            histogram::create_weighted_histogram(
+                &lengths,
+                "WeightedHistogramReadlength",
+                "Weighted histogram of read lengths",
                 "Read length",
-                "Average read quality",
-                config,
-            )?);
+                "Number of bases",
+                &config,
+                n50_marker,
+            )
+        }));
+    }
+
+    // Log-transformed histograms
+    if !log_lengths.is_empty() {
+        let log_lengths = Arc::new(log_lengths);
+        {
+            let (log_lengths, config) = (Arc::clone(&log_lengths), config.clone());
+            tasks.push(Box::new(move || {
+                histogram::create_log_histogram(
+                    &log_lengths,
+                    "Non_weightedLogTransformed_HistogramReadlength",
+                    "Non-weighted histogram of read lengths after log transformation",
+                    "Read length",
+                    "Number of reads",
+                    &config,
+                )
+            }));
+        }
+        {
+            let (lengths, config) = (Arc::clone(&lengths), config.clone());
+            tasks.push(Box::new(move || {
+                histogram::create_log_weighted_histogram(
+                    &lengths,
+                    "WeightedLogTransformed_HistogramReadlength",
+                    "Weighted histogram of read lengths after log transformation",
+                    "Read length",
+                    "Number of bases (log scale)",
+                    &config,
+                )
+            }));
         }
     }
 
-    // Alignment-specific plots (Phase 2)
+    // Yield by length
+    {
+        let (lengths, config) = (Arc::clone(&lengths), config.clone());
+        tasks.push(Box::new(move || {
+            yield_plot::create_yield_by_length(&lengths, "Yield_By_Length", &config)
+        }));
+    }
+
+    // Length vs Quality scatter
+    let reads_with_qual: Vec<_> = reads.iter().filter(|r| r.quality.is_some()).collect();
+    if !reads_with_qual.is_empty() {
+        let lq = Arc::new(
+            reads_with_qual
+                .iter()
+                .map(|r| r.length as f64)
+                .collect::<Vec<_>>(),
+        );
+        let qq = Arc::new(
+            reads_with_qual
+                .iter()
+                .filter_map(|r| r.quality)
+                .collect::<Vec<_>>(),
+        );
+        {
+            let (lq, qq, config) = (Arc::clone(&lq), Arc::clone(&qq), config.clone());
+            tasks.push(Box::new(move || {
+                scatter::create_scatter(
+                    &lq,
+                    &qq,
+                    "LengthvsQualityScatterPlot",
+                    "Read length vs Average read quality",
+                    "Read length",
+                    "Average read quality",
+                    &config,
+                )
+            }));
+        }
+        if config.loglength {
+            let (lq, qq, config) = (Arc::clone(&lq), Arc::clone(&qq), config.clone());
+            tasks.push(Box::new(move || {
+                scatter::create_log_scatter(
+                    &lq,
+                    &qq,
+                    "LengthvsQualityScatterPlot_loglength",
+                    "Read length vs Average read quality (log transformed)",
+                    "Read length",
+                    "Average read quality",
+                    &config,
+                )
+            }));
+        }
+    }
+
+    // Alignment-specific plots
     if config.has_alignment {
-        // Mapping quality scatter
         let reads_with_mapq: Vec<_> = reads
             .iter()
             .filter(|r| r.mapping_quality.is_some())
             .collect();
         if !reads_with_mapq.is_empty() {
-            let lengths_with_mapq: Vec<f64> =
-                reads_with_mapq.iter().map(|r| r.length as f64).collect();
-            let mapping_quals: Vec<f64> = reads_with_mapq
-                .iter()
-                .filter_map(|r| r.mapping_quality.map(|q| q as f64))
-                .collect();
-
-            plots.push(scatter::create_scatter(
-                &lengths_with_mapq,
-                &mapping_quals,
-                "LengthvsMappingQualityScatterPlot",
-                "Read length vs Mapping quality",
-                "Read length",
-                "Mapping quality",
-                config,
-            )?);
-
-            // Log-transformed version if --loglength is set
+            let lm = Arc::new(
+                reads_with_mapq
+                    .iter()
+                    .map(|r| r.length as f64)
+                    .collect::<Vec<_>>(),
+            );
+            let mq = Arc::new(
+                reads_with_mapq
+                    .iter()
+                    .filter_map(|r| r.mapping_quality.map(|q| q as f64))
+                    .collect::<Vec<_>>(),
+            );
+            {
+                let (lm, mq, config) = (Arc::clone(&lm), Arc::clone(&mq), config.clone());
+                tasks.push(Box::new(move || {
+                    scatter::create_scatter(
+                        &lm,
+                        &mq,
+                        "LengthvsMappingQualityScatterPlot",
+                        "Read length vs Mapping quality",
+                        "Read length",
+                        "Mapping quality",
+                        &config,
+                    )
+                }));
+            }
             if config.loglength {
-                plots.push(scatter::create_log_scatter(
-                    &lengths_with_mapq,
-                    &mapping_quals,
-                    "LengthvsMappingQualityScatterPlot_loglength",
-                    "Read length vs Mapping quality (log transformed)",
-                    "Read length",
-                    "Mapping quality",
-                    config,
-                )?);
+                let (lm, mq, config) = (Arc::clone(&lm), Arc::clone(&mq), config.clone());
+                tasks.push(Box::new(move || {
+                    scatter::create_log_scatter(
+                        &lm,
+                        &mq,
+                        "LengthvsMappingQualityScatterPlot_loglength",
+                        "Read length vs Mapping quality (log transformed)",
+                        "Read length",
+                        "Mapping quality",
+                        &config,
+                    )
+                }));
             }
         }
 
-        // Percent identity histogram
         let percent_ids: Vec<f64> = reads.iter().filter_map(|r| r.percent_identity).collect();
-
         if !percent_ids.is_empty() {
-            plots.push(histogram::create_histogram(
-                &percent_ids,
-                "PercentIdentityHistogram",
-                "Histogram of percent identity",
-                "Percent identity",
-                "Number of reads",
-                None,
-                config,
-                None,
-            )?);
-
-            // Length vs Percent Identity scatter
-            let reads_with_pi: Vec<_> = reads
-                .iter()
-                .filter(|r| r.percent_identity.is_some())
-                .collect();
-            let lengths_with_pi: Vec<f64> = reads_with_pi.iter().map(|r| r.length as f64).collect();
-
-            plots.push(scatter::create_scatter(
-                &lengths_with_pi,
-                &percent_ids,
-                "LengthvsPercentIdentityScatterPlot",
-                "Read length vs Percent identity",
-                "Read length",
-                "Percent identity",
-                config,
-            )?);
-
-            // Log-transformed version if --loglength is set
+            let lp = Arc::new(
+                reads
+                    .iter()
+                    .filter(|r| r.percent_identity.is_some())
+                    .map(|r| r.length as f64)
+                    .collect::<Vec<_>>(),
+            );
+            let pi = Arc::new(percent_ids);
+            {
+                let (pi, config) = (Arc::clone(&pi), config.clone());
+                tasks.push(Box::new(move || {
+                    histogram::create_histogram(
+                        &pi,
+                        "PercentIdentityHistogram",
+                        "Histogram of percent identity",
+                        "Percent identity",
+                        "Number of reads",
+                        None,
+                        &config,
+                        None,
+                    )
+                }));
+            }
+            {
+                let (lp, pi, config) = (Arc::clone(&lp), Arc::clone(&pi), config.clone());
+                tasks.push(Box::new(move || {
+                    scatter::create_scatter(
+                        &lp,
+                        &pi,
+                        "LengthvsPercentIdentityScatterPlot",
+                        "Read length vs Percent identity",
+                        "Read length",
+                        "Percent identity",
+                        &config,
+                    )
+                }));
+            }
             if config.loglength {
-                plots.push(scatter::create_log_scatter(
-                    &lengths_with_pi,
-                    &percent_ids,
-                    "LengthvsPercentIdentityScatterPlot_loglength",
-                    "Read length vs Percent identity (log transformed)",
-                    "Read length",
-                    "Percent identity",
-                    config,
-                )?);
+                let (lp, pi, config) = (Arc::clone(&lp), Arc::clone(&pi), config.clone());
+                tasks.push(Box::new(move || {
+                    scatter::create_log_scatter(
+                        &lp,
+                        &pi,
+                        "LengthvsPercentIdentityScatterPlot_loglength",
+                        "Read length vs Percent identity (log transformed)",
+                        "Read length",
+                        "Percent identity",
+                        &config,
+                    )
+                }));
             }
         }
     }
 
-    // Time-based plots (if time data available)
+    // Run all tasks in parallel
+    let mut plots: Vec<GeneratedPlot> = tasks
+        .into_par_iter()
+        .map(|task| task())
+        .collect::<Result<Vec<_>>>()?;
+
+    // Time plots are appended after — they return multiple plots and are rarely present
     if config.has_time_data {
-        let time_plot_results = time_plots::generate_time_plots(reads, config)?;
-        plots.extend(time_plot_results);
+        plots.extend(time_plots::generate_time_plots(reads, config)?);
     }
 
     info!("Generated {} plots", plots.len());

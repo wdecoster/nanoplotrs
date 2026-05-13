@@ -1410,6 +1410,7 @@ dependencies = [
  "csv",
  "env_logger",
  "flate2",
+ "libc",
  "log",
  "rayon",
  "rust-htslib",
