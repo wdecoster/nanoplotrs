@@ -58,23 +58,16 @@ cargo build --release
 ## Usage
 
 ```
-nanoplot [OPTIONS] --<input-type> <FILE>...
+nanoplot [OPTIONS] --input <FILE>...
 ```
 
-### Input formats
-
-Provide one input type. Multiple files are accepted and processed together.
+### Input
 
 | Flag | Description |
 |------|-------------|
-| `--fastq FILE...` | FASTQ file(s) |
-| `--fasta FILE...` | FASTA file(s) (no quality scores) |
-| `--bam FILE...` | Aligned BAM file(s) |
-| `--cram FILE...` | Aligned CRAM file(s) |
-| `--ubam FILE...` | Unaligned BAM file(s) |
-| `--summary FILE...` | Nanopore sequencing summary TSV file(s) |
+| `-i, --input FILE...` | Input file(s) — format is auto-detected from content |
 
-Files may be gzip-compressed (`.gz`).
+Supported formats: FASTQ, FASTA, BAM, CRAM, unaligned BAM, Nanopore sequencing summary TSV. FASTQ, FASTA, and summary files may be gzip-compressed (`.gz`). Multiple files are accepted and processed together; all files must be the same format. Pass `-` to read from stdin.
 
 ### Output options
 
@@ -85,7 +78,6 @@ Files may be gzip-compressed (`.gz`).
 | `-f, --format FORMAT` | `svg` | Plot format: `svg`, `png`, or `pdf` |
 | `--dpi NUM` | `300` | DPI for PNG output |
 | `--raw` | | Export raw read data as `NanoPlot-data.tsv` |
-| `--tsv-stats` | | Write statistics as TSV instead of plain text |
 
 ### Filtering options
 
@@ -121,7 +113,7 @@ All files are written to `--outdir` with optional `--prefix`.
 
 | File | Description |
 |------|-------------|
-| `NanoStats.txt` | Summary statistics (use `--tsv-stats` for TSV format) |
+| `NanoStats.tsv` | Summary statistics in TSV format |
 | `NanoPlot-report.html` | Interactive HTML report with embedded plots |
 | `NanoPlot-data.tsv` | Raw read data per read (only with `--raw`) |
 
@@ -149,27 +141,30 @@ All files are written to `--outdir` with optional `--prefix`.
 
 ```bash
 # FASTQ input, results in ./output
-nanoplot --fastq reads.fastq.gz -o output/
+nanoplot -i reads.fastq.gz -o output/
 
 # Multiple FASTQ files with quality and length filters
-nanoplot --fastq run1.fastq.gz run2.fastq.gz \
+nanoplot -i run1.fastq.gz run2.fastq.gz \
   --minlength 1000 --minqual 10 \
   -o results/
 
 # BAM file with PDF output and N50 marker
-nanoplot --bam aligned.bam \
+nanoplot -i aligned.bam \
   --format pdf --N50 \
   -o plots/ --prefix experiment1_
 
-# Sequencing summary with downsampling and TSV stats
-nanoplot --summary sequencing_summary.txt \
-  --downsample 50000 --loglength --tsv-stats \
+# Sequencing summary with downsampling
+nanoplot -i sequencing_summary.txt \
+  --downsample 50000 --loglength \
   -o output/
 
 # Export raw data and drop outliers
-nanoplot --fastq data.fastq.gz \
+nanoplot -i data.fastq.gz \
   --drop-outliers --raw \
   -o output/
+
+# Read from stdin
+samtools view -b aligned.bam | nanoplot -i - -o output/
 ```
 
 ---
