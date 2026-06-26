@@ -22,9 +22,17 @@ Which metrics are available depends on the source:
 |--------|:------:|:----------------:|:------------------:|:--------------:|
 | FASTA | ✓ | | | |
 | FASTQ | ✓ | ✓ | | |
+| rich FASTQ | ✓ | ✓ | | ✓ |
 | unaligned BAM | ✓ | ✓ | | |
 | aligned BAM/CRAM | ✓ | | ✓ | |
 | sequencing summary | ✓ | ✓ | | ✓ |
+
+A "rich" FASTQ is a FASTQ whose headers carry MinKNOW/albacore per-read metadata
+— either the legacy `key=value` form (`ch=`, `start_time=`, `duration=`,
+`runid=`) or the SAM-style `tag:type:value` form (`ch:i:`, `st:Z:`, …). The
+sniffer detects it by inspecting the first header line rather than just the first
+byte, so it is selected automatically and its channel/timestamp fields drive the
+time-resolved plots (the same ones a sequencing summary produces).
 
 Aligned BAM/CRAM is deliberately summarised by **alignment percent identity and
 mapping quality**, not by per-base basecall quality — for aligned data, identity

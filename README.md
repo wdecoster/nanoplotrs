@@ -67,6 +67,12 @@ excluded, and supplementary alignments are excluded by default (use
 `--use_supplementary` to include them). See [docs/internals.md](docs/internals.md)
 for why.
 
+A "rich" FASTQ — one whose headers carry MinKNOW/albacore metadata (`ch=`,
+`start_time=`, … or the newer SAM-style `ch:i:`/`st:Z:` fields) — is detected
+automatically, and the per-read channel and timestamp it contains unlock the
+time-resolved plots (cumulative yield, reads over time, active pores, and length
+and quality over time), just like a sequencing summary.
+
 ### Output options
 
 | Flag | Default | Description |

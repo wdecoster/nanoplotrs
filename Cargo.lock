@@ -1401,7 +1401,7 @@ dependencies = [
 [[package]]
 name = "nanoget-rs"
 version = "0.1.1"
-source = "git+https://github.com/wdecoster/nanoget-rs?rev=8277d37#8277d374af04c7b561966b71db7bd253c8100414"
+source = "git+https://github.com/wdecoster/nanoget-rs?rev=eda8e5a#eda8e5a15784dfe5ef9b14d5f0925f651fa88931"
 dependencies = [
  "anyhow",
  "bio",
@@ -1423,7 +1423,7 @@ dependencies = [
 
 [[package]]
 name = "nanoplot"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
