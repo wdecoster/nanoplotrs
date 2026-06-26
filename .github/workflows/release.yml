@@ -5,6 +5,10 @@ on:
     tags:
       - "v*"
 
+# Required for create-release / upload-release-asset to write the GitHub release.
+permissions:
+  contents: write
+
 env:
   CARGO_TERM_COLOR: always
 
