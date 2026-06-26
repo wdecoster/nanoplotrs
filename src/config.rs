@@ -32,6 +32,18 @@ pub struct Config {
     pub raw: bool,
     /// Show log-transformed length in scatter plots
     pub loglength: bool,
+    /// Use dot scatter plots instead of 2D density
+    pub dots: bool,
+    /// Colormap name for 2D density plots
+    pub colormap: String,
+    /// Also write statistics as JSON
+    pub json: bool,
+    /// Percentile cutoff for read lengths in plots (100.0 = show all)
+    pub percentile: f64,
+    /// Input files passed on the command line
+    pub input_files: Vec<std::path::PathBuf>,
+    /// Full command line (for the report details section)
+    pub command_line: String,
 }
 
 impl Config {
@@ -51,6 +63,12 @@ impl Config {
             has_time_data: false, // determined after data extraction
             raw: cli.raw,
             loglength: cli.loglength,
+            dots: cli.dots,
+            colormap: cli.colormap.clone(),
+            json: cli.json,
+            percentile: cli.percentile,
+            input_files: cli.input.clone(),
+            command_line: std::env::args().collect::<Vec<_>>().join(" "),
         }
     }
 
@@ -72,7 +90,6 @@ pub struct FilterSettings {
     pub max_length: Option<u32>,
     pub min_quality: Option<f64>,
     pub downsample: Option<usize>,
-    pub drop_outliers: bool,
 }
 
 impl FilterSettings {
@@ -82,7 +99,6 @@ impl FilterSettings {
             max_length: cli.maxlength,
             min_quality: cli.minqual,
             downsample: cli.downsample,
-            drop_outliers: cli.drop_outliers,
         }
     }
 
@@ -92,6 +108,5 @@ impl FilterSettings {
             || self.max_length.is_some()
             || self.min_quality.is_some()
             || self.downsample.is_some()
-            || self.drop_outliers
     }
 }

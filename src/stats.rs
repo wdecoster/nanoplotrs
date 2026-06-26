@@ -7,6 +7,25 @@ use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 
+/// Quality cutoffs (Phred) for the "reads above threshold" table.
+const QUALITY_CUTOFFS: [f64; 5] = [5.0, 7.0, 10.0, 12.0, 15.0];
+/// Read-length cutoffs (bases) for the "reads above threshold" table.
+/// Cutoffs at or above the longest read are skipped (they would always be zero).
+const LENGTH_CUTOFFS: [u64; 7] = [
+    10_000, 25_000, 50_000, 100_000, 200_000, 500_000, 1_000_000,
+];
+
+/// Aggregate for one "reads above a cutoff" row: how many reads clear the cutoff,
+/// what fraction of all reads that is, and how many megabases they account for.
+#[derive(Debug, Clone)]
+pub struct ThresholdStat {
+    /// Quality (Phred) or length (bases) cutoff.
+    pub cutoff: f64,
+    pub reads: usize,
+    pub percent: f64,
+    pub megabases: f64,
+}
+
 /// Statistics summary for a collection of reads
 #[derive(Debug, Clone)]
 pub struct Stats {
@@ -24,6 +43,78 @@ pub struct Stats {
     pub total_aligned_bases: Option<u64>,
     pub mean_percent_identity: Option<f64>,
     pub median_percent_identity: Option<f64>,
+    // Reads above quality/length cutoffs (quality is empty when no quality data)
+    pub quality_thresholds: Vec<ThresholdStat>,
+    pub length_thresholds: Vec<ThresholdStat>,
+}
+
+/// Format a length cutoff for display, e.g. 10_000 -> "10kb", 1_000_000 -> "1Mb".
+pub fn fmt_length_cutoff(cutoff: u64) -> String {
+    if cutoff >= 1_000_000 && cutoff.is_multiple_of(1_000_000) {
+        format!("{}Mb", cutoff / 1_000_000)
+    } else {
+        format!("{}kb", cutoff / 1_000)
+    }
+}
+
+/// Serialize a list of threshold aggregates to a JSON array.
+fn thresholds_to_json(items: &[ThresholdStat]) -> String {
+    let entries: Vec<String> = items
+        .iter()
+        .map(|t| {
+            format!(
+                "{{\"cutoff\": {}, \"reads\": {}, \"percent\": {:.1}, \"megabases\": {:.1}}}",
+                t.cutoff, t.reads, t.percent, t.megabases
+            )
+        })
+        .collect();
+    format!("[{}]", entries.join(", "))
+}
+
+/// Count reads clearing each quality cutoff, with their fraction and megabases.
+fn compute_quality_thresholds(reads: &[ReadMetrics], num_reads: usize) -> Vec<ThresholdStat> {
+    let pairs: Vec<(f64, u64)> = reads
+        .iter()
+        .filter_map(|r| r.quality.map(|q| (q, r.length as u64)))
+        .collect();
+    if pairs.is_empty() {
+        return Vec::new();
+    }
+    QUALITY_CUTOFFS
+        .iter()
+        .map(|&cutoff| {
+            let bases: u64 = pairs.iter().filter(|(q, _)| *q >= cutoff).map(|(_, l)| *l).sum();
+            let count = pairs.iter().filter(|(q, _)| *q >= cutoff).count();
+            ThresholdStat {
+                cutoff,
+                reads: count,
+                percent: count as f64 / num_reads as f64 * 100.0,
+                megabases: bases as f64 / 1e6,
+            }
+        })
+        .collect()
+}
+
+/// Count reads clearing each length cutoff (below the maximum), with fraction and megabases.
+fn compute_length_thresholds(lengths: &[u32], num_reads: usize, max_length: u32) -> Vec<ThresholdStat> {
+    LENGTH_CUTOFFS
+        .iter()
+        .filter(|&&cutoff| cutoff < max_length as u64)
+        .map(|&cutoff| {
+            let bases: u64 = lengths
+                .iter()
+                .map(|&l| l as u64)
+                .filter(|&l| l >= cutoff)
+                .sum();
+            let count = lengths.iter().filter(|&&l| l as u64 >= cutoff).count();
+            ThresholdStat {
+                cutoff: cutoff as f64,
+                reads: count,
+                percent: count as f64 / num_reads as f64 * 100.0,
+                megabases: bases as f64 / 1e6,
+            }
+        })
+        .collect()
 }
 
 impl Stats {
@@ -75,6 +166,9 @@ impl Stats {
             (None, None)
         };
 
+        let quality_thresholds = compute_quality_thresholds(reads, num_reads);
+        let length_thresholds = compute_length_thresholds(&lengths, num_reads, max_length);
+
         Self {
             num_reads,
             total_bases,
@@ -89,6 +183,8 @@ impl Stats {
             total_aligned_bases,
             mean_percent_identity,
             median_percent_identity,
+            quality_thresholds,
+            length_thresholds,
         }
     }
 
@@ -107,6 +203,8 @@ impl Stats {
             total_aligned_bases: None,
             mean_percent_identity: None,
             median_percent_identity: None,
+            quality_thresholds: Vec::new(),
+            length_thresholds: Vec::new(),
         }
     }
 
@@ -139,12 +237,74 @@ impl Stats {
             writeln!(output, "Median percent identity\t{:.2}", median_pi).unwrap();
         }
 
+        // Reads above thresholds: emitted as atomic (count / % / Mb) rows per cutoff
+        // so the file stays a strict two-column Metric/Value table.
+        for t in &self.quality_thresholds {
+            writeln!(output, "Reads >Q{:.0} (count)\t{}", t.cutoff, t.reads).unwrap();
+            writeln!(output, "Reads >Q{:.0} (%)\t{:.1}", t.cutoff, t.percent).unwrap();
+            writeln!(output, "Reads >Q{:.0} (Mb)\t{:.1}", t.cutoff, t.megabases).unwrap();
+        }
+        for t in &self.length_thresholds {
+            let label = fmt_length_cutoff(t.cutoff as u64);
+            writeln!(output, "Reads >{} (count)\t{}", label, t.reads).unwrap();
+            writeln!(output, "Reads >{} (%)\t{:.1}", label, t.percent).unwrap();
+            writeln!(output, "Reads >{} (Mb)\t{:.1}", label, t.megabases).unwrap();
+        }
+
         output
     }
 
     pub fn write_to_file(&self, path: &Path) -> Result<()> {
         let mut file = File::create(path)?;
         file.write_all(self.to_tsv().as_bytes())?;
+        Ok(())
+    }
+
+    fn to_json(&self) -> String {
+        let mut s = String::from("{\n");
+        s.push_str(&format!("  \"num_reads\": {},\n", self.num_reads));
+        s.push_str(&format!("  \"total_bases\": {},\n", self.total_bases));
+        s.push_str(&format!("  \"mean_length\": {:.1},\n", self.mean_length));
+        s.push_str(&format!("  \"median_length\": {:.1},\n", self.median_length));
+        s.push_str(&format!("  \"stdev_length\": {:.1},\n", self.stdev_length));
+        s.push_str(&format!("  \"min_length\": {},\n", self.min_length));
+        s.push_str(&format!("  \"max_length\": {},\n", self.max_length));
+        s.push_str(&format!("  \"n50\": {},\n", self.n50));
+        match self.mean_quality {
+            Some(v) => s.push_str(&format!("  \"mean_quality\": {:.1},\n", v)),
+            None => s.push_str("  \"mean_quality\": null,\n"),
+        }
+        match self.median_quality {
+            Some(v) => s.push_str(&format!("  \"median_quality\": {:.1},\n", v)),
+            None => s.push_str("  \"median_quality\": null,\n"),
+        }
+        match self.total_aligned_bases {
+            Some(v) => s.push_str(&format!("  \"total_aligned_bases\": {},\n", v)),
+            None => s.push_str("  \"total_aligned_bases\": null,\n"),
+        }
+        match self.mean_percent_identity {
+            Some(v) => s.push_str(&format!("  \"mean_percent_identity\": {:.2},\n", v)),
+            None => s.push_str("  \"mean_percent_identity\": null,\n"),
+        }
+        match self.median_percent_identity {
+            Some(v) => s.push_str(&format!("  \"median_percent_identity\": {:.2},\n", v)),
+            None => s.push_str("  \"median_percent_identity\": null,\n"),
+        }
+        s.push_str(&format!(
+            "  \"quality_thresholds\": {},\n",
+            thresholds_to_json(&self.quality_thresholds)
+        ));
+        s.push_str(&format!(
+            "  \"length_thresholds\": {}\n",
+            thresholds_to_json(&self.length_thresholds)
+        ));
+        s.push('}');
+        s
+    }
+
+    pub fn write_json_to_file(&self, path: &Path) -> Result<()> {
+        let mut file = File::create(path)?;
+        file.write_all(self.to_json().as_bytes())?;
         Ok(())
     }
 }

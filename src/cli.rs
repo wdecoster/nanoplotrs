@@ -45,13 +45,30 @@ pub struct Cli {
     #[arg(long)]
     pub downsample: Option<usize>,
 
-    /// Drop outlier reads with extreme lengths
+    /// Include supplementary alignments from BAM/CRAM (excluded by default).
+    /// Secondary alignments are always excluded.
     #[arg(long)]
-    pub drop_outliers: bool,
+    pub use_supplementary: bool,
+
+    /// Percentile of read lengths to show in plots (default 99; set 100 to show all)
+    #[arg(long, default_value = "99")]
+    pub percentile: f64,
 
     /// Additionally show log-transformed length in scatter plots
     #[arg(long)]
     pub loglength: bool,
+
+    /// Use dot scatter plots instead of the default 2D density plots
+    #[arg(long)]
+    pub dots: bool,
+
+    /// Colormap for 2D density plots
+    #[arg(long, default_value = "viridis", value_parser = ["viridis", "inferno", "turbo", "grayscale"])]
+    pub colormap: String,
+
+    /// Also write statistics as JSON (alongside the default TSV)
+    #[arg(long)]
+    pub json: bool,
 
     // Visual options
     /// Plot color (hex format like #4CB391 or color name)

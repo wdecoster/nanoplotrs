@@ -3,7 +3,7 @@
 use crate::config::Config;
 use crate::error::Result;
 use crate::plots::GeneratedPlot;
-use crate::stats::Stats;
+use crate::stats::{fmt_length_cutoff, Stats};
 use maud::{html, Markup, PreEscaped, DOCTYPE};
 use std::fs::File;
 use std::io::Write;
@@ -28,7 +28,7 @@ fn build_html(
     plots: &[GeneratedPlot],
     stats: &Stats,
     stats_before_filter: Option<&Stats>,
-    _config: &Config,
+    config: &Config,
 ) -> Markup {
     html! {
         (DOCTYPE)
@@ -40,7 +40,7 @@ fn build_html(
             }
             body {
                 div class="grid" {
-                    (build_header(plots, stats_before_filter.is_some()))
+                    (build_header(plots, stats_before_filter.is_some(), has_thresholds(stats)))
                     main class="grid-main" {
                         h2 { "NanoPlot Report" }
 
@@ -55,10 +55,14 @@ fn build_html(
                             (build_stats_table(stats))
                         }
 
+                        (build_thresholds_table(stats))
+
                         h3 id="plots" { "Plots" }
                         @for plot in plots {
                             (build_plot_section(plot))
                         }
+
+                        (build_details_section(config))
                     }
                 }
                 (build_javascript())
@@ -67,7 +71,12 @@ fn build_html(
     }
 }
 
-fn build_header(plots: &[GeneratedPlot], has_filter: bool) -> Markup {
+/// True when there is at least one quality or length threshold row to show.
+fn has_thresholds(stats: &Stats) -> bool {
+    !stats.quality_thresholds.is_empty() || !stats.length_thresholds.is_empty()
+}
+
+fn build_header(plots: &[GeneratedPlot], has_filter: bool, has_thresholds: bool) -> Markup {
     html! {
         header class="grid-header" {
             nav {
@@ -78,6 +87,9 @@ fn build_header(plots: &[GeneratedPlot], has_filter: bool) -> Markup {
                         li { a href="#stats-after" { "Statistics (after filter)" } }
                     } @else {
                         li { a href="#stats" { "Statistics" } }
+                    }
+                    @if has_thresholds {
+                        li { a href="#thresholds" { "Reads above thresholds" } }
                     }
                     li class="submenu" {
                         a href="#plots" class="submenubtn" { "Plots" }
@@ -91,6 +103,7 @@ fn build_header(plots: &[GeneratedPlot], has_filter: bool) -> Markup {
                             }
                         }
                     }
+                    li { a href="#details" { "Details" } }
                     li class="issue-btn" {
                         a href="https://github.com/wdecoster/nanoplotrs/issues" target="_blank" class="reporting" {
                             "Report issue"
@@ -173,6 +186,42 @@ fn build_stats_table(stats: &Stats) -> Markup {
     }
 }
 
+fn build_thresholds_table(stats: &Stats) -> Markup {
+    html! {
+        @if has_thresholds(stats) {
+            h3 id="thresholds" { "Reads above thresholds" }
+            table {
+                thead {
+                    tr {
+                        th { "Threshold" }
+                        th { "Reads" }
+                        th { "% of reads" }
+                        th { "Megabases" }
+                    }
+                }
+                tbody {
+                    @for t in &stats.quality_thresholds {
+                        tr {
+                            td { (format!(">Q{:.0}", t.cutoff)) }
+                            td { (format_number(t.reads as u64)) }
+                            td { (format!("{:.1}%", t.percent)) }
+                            td { (format!("{:.1}", t.megabases)) }
+                        }
+                    }
+                    @for t in &stats.length_thresholds {
+                        tr {
+                            td { (format!(">{}", fmt_length_cutoff(t.cutoff as u64))) }
+                            td { (format_number(t.reads as u64)) }
+                            td { (format!("{:.1}%", t.percent)) }
+                            td { (format!("{:.1}", t.megabases)) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn build_plot_section(plot: &GeneratedPlot) -> Markup {
     let anchor = plot.title.replace(' ', "_");
 
@@ -182,6 +231,33 @@ fn build_plot_section(plot: &GeneratedPlot) -> Markup {
             h4 class="hiddentitle" id=(anchor) { (&plot.title) }
             div class="plot-container" {
                 (PreEscaped(&plot.svg_content))
+            }
+        }
+    }
+}
+
+fn build_details_section(config: &Config) -> Markup {
+    let version = env!("CARGO_PKG_VERSION");
+    html! {
+        h3 id="details" { "Run details" }
+        table {
+            tbody {
+                tr {
+                    td { "NanoPlot version" }
+                    td { (version) }
+                }
+                tr {
+                    td { "Command" }
+                    td { code { (config.command_line.clone()) } }
+                }
+                tr {
+                    td { (if config.input_files.len() == 1 { "Input file" } else { "Input files" }) }
+                    td {
+                        @for f in &config.input_files {
+                            div { (f.display()) }
+                        }
+                    }
+                }
             }
         }
     }
@@ -321,6 +397,14 @@ table {
 table td {
     border: 1px solid #ddd;
     padding: 8px;
+}
+
+table th {
+    border: 1px solid #ddd;
+    padding: 8px;
+    background-color: #001f3f;
+    color: white;
+    text-align: left;
 }
 
 table tr:nth-child(even) { background-color: #f2f2f2; }

@@ -145,29 +145,21 @@ pub fn generate_plots(
         {
             let (lq, qq, config) = (Arc::clone(&lq), Arc::clone(&qq), config.clone());
             tasks.push(Box::new(move || {
-                scatter::create_scatter(
-                    &lq,
-                    &qq,
-                    "LengthvsQualityScatterPlot",
-                    "Read length vs Average read quality",
-                    "Read length",
-                    "Average read quality",
-                    &config,
-                )
+                if config.dots {
+                    scatter::create_scatter(&lq, &qq, "LengthvsQualityScatterPlot", "Read length vs Average read quality", "Read length", "Average read quality", &config)
+                } else {
+                    scatter::create_density2d(&lq, &qq, "LengthvsQualityDensityPlot", "Read length vs Average read quality", "Read length", "Average read quality", &config)
+                }
             }));
         }
         if config.loglength {
             let (lq, qq, config) = (Arc::clone(&lq), Arc::clone(&qq), config.clone());
             tasks.push(Box::new(move || {
-                scatter::create_log_scatter(
-                    &lq,
-                    &qq,
-                    "LengthvsQualityScatterPlot_loglength",
-                    "Read length vs Average read quality (log transformed)",
-                    "Read length",
-                    "Average read quality",
-                    &config,
-                )
+                if config.dots {
+                    scatter::create_log_scatter(&lq, &qq, "LengthvsQualityScatterPlot_loglength", "Read length vs Average read quality (log transformed)", "Read length", "Average read quality", &config)
+                } else {
+                    scatter::create_log_density2d(&lq, &qq, "LengthvsQualityDensityPlot_loglength", "Read length vs Average read quality (log transformed)", "Read length", "Average read quality", &config)
+                }
             }));
         }
     }
@@ -194,31 +186,38 @@ pub fn generate_plots(
             {
                 let (lm, mq, config) = (Arc::clone(&lm), Arc::clone(&mq), config.clone());
                 tasks.push(Box::new(move || {
-                    scatter::create_scatter(
-                        &lm,
-                        &mq,
-                        "LengthvsMappingQualityScatterPlot",
-                        "Read length vs Mapping quality",
-                        "Read length",
-                        "Mapping quality",
-                        &config,
-                    )
+                    if config.dots {
+                        scatter::create_scatter(&lm, &mq, "LengthvsMappingQualityScatterPlot", "Read length vs Mapping quality", "Read length", "Mapping quality", &config)
+                    } else {
+                        scatter::create_density2d(&lm, &mq, "LengthvsMappingQualityDensityPlot", "Read length vs Mapping quality", "Read length", "Mapping quality", &config)
+                    }
                 }));
             }
             if config.loglength {
                 let (lm, mq, config) = (Arc::clone(&lm), Arc::clone(&mq), config.clone());
                 tasks.push(Box::new(move || {
-                    scatter::create_log_scatter(
-                        &lm,
-                        &mq,
-                        "LengthvsMappingQualityScatterPlot_loglength",
-                        "Read length vs Mapping quality (log transformed)",
-                        "Read length",
-                        "Mapping quality",
-                        &config,
-                    )
+                    if config.dots {
+                        scatter::create_log_scatter(&lm, &mq, "LengthvsMappingQualityScatterPlot_loglength", "Read length vs Mapping quality (log transformed)", "Read length", "Mapping quality", &config)
+                    } else {
+                        scatter::create_log_density2d(&lm, &mq, "LengthvsMappingQualityDensityPlot_loglength", "Read length vs Mapping quality (log transformed)", "Read length", "Mapping quality", &config)
+                    }
                 }));
             }
+        }
+
+        // Aligned read length vs sequenced read length
+        let reads_with_aln: Vec<_> = reads.iter().filter(|r| r.aligned_length.is_some()).collect();
+        if !reads_with_aln.is_empty() {
+            let seq_len = Arc::new(reads_with_aln.iter().map(|r| r.length as f64).collect::<Vec<_>>());
+            let aln_len = Arc::new(reads_with_aln.iter().filter_map(|r| r.aligned_length.map(|l| l as f64)).collect::<Vec<_>>());
+            let (seq_len, aln_len, config) = (Arc::clone(&seq_len), Arc::clone(&aln_len), config.clone());
+            tasks.push(Box::new(move || {
+                if config.dots {
+                    scatter::create_scatter(&seq_len, &aln_len, "AlignedReadlengthvsSequencedReadLength", "Aligned read length vs sequenced read length", "Sequenced read length", "Aligned read length", &config)
+                } else {
+                    scatter::create_density2d(&seq_len, &aln_len, "AlignedReadlengthvsSequencedReadLength", "Aligned read length vs sequenced read length", "Sequenced read length", "Aligned read length", &config)
+                }
+            }));
         }
 
         let percent_ids: Vec<f64> = reads.iter().filter_map(|r| r.percent_identity).collect();
@@ -234,44 +233,43 @@ pub fn generate_plots(
             {
                 let (pi, config) = (Arc::clone(&pi), config.clone());
                 tasks.push(Box::new(move || {
-                    histogram::create_histogram(
+                    histogram::create_identity_histogram(
                         &pi,
                         "PercentIdentityHistogram",
                         "Histogram of percent identity",
-                        "Percent identity",
-                        "Number of reads",
-                        None,
                         &config,
-                        None,
+                    )
+                }));
+            }
+            {
+                let (pi, config) = (Arc::clone(&pi), config.clone());
+                tasks.push(Box::new(move || {
+                    histogram::create_phred_histogram(
+                        &pi,
+                        "PhredScoreHistogram",
+                        "Histogram of accuracy (Phred scale)",
+                        &config,
                     )
                 }));
             }
             {
                 let (lp, pi, config) = (Arc::clone(&lp), Arc::clone(&pi), config.clone());
                 tasks.push(Box::new(move || {
-                    scatter::create_scatter(
-                        &lp,
-                        &pi,
-                        "LengthvsPercentIdentityScatterPlot",
-                        "Read length vs Percent identity",
-                        "Read length",
-                        "Percent identity",
-                        &config,
-                    )
+                    if config.dots {
+                        scatter::create_scatter(&lp, &pi, "LengthvsPercentIdentityScatterPlot", "Read length vs Percent identity", "Read length", "Percent identity", &config)
+                    } else {
+                        scatter::create_density2d(&lp, &pi, "LengthvsPercentIdentityDensityPlot", "Read length vs Percent identity", "Read length", "Percent identity", &config)
+                    }
                 }));
             }
             if config.loglength {
                 let (lp, pi, config) = (Arc::clone(&lp), Arc::clone(&pi), config.clone());
                 tasks.push(Box::new(move || {
-                    scatter::create_log_scatter(
-                        &lp,
-                        &pi,
-                        "LengthvsPercentIdentityScatterPlot_loglength",
-                        "Read length vs Percent identity (log transformed)",
-                        "Read length",
-                        "Percent identity",
-                        &config,
-                    )
+                    if config.dots {
+                        scatter::create_log_scatter(&lp, &pi, "LengthvsPercentIdentityScatterPlot_loglength", "Read length vs Percent identity (log transformed)", "Read length", "Percent identity", &config)
+                    } else {
+                        scatter::create_log_density2d(&lp, &pi, "LengthvsPercentIdentityDensityPlot_loglength", "Read length vs Percent identity (log transformed)", "Read length", "Percent identity", &config)
+                    }
                 }));
             }
         }

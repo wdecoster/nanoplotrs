@@ -16,11 +16,6 @@ pub fn filter_reads(reads: Vec<ReadMetrics>, settings: &FilterSettings) -> Vec<R
         .filter(|r| passes_quality_filter(r, settings))
         .collect();
 
-    // Drop outliers if requested (remove top 0.1% by length)
-    if settings.drop_outliers && !filtered.is_empty() {
-        filtered = drop_outliers(filtered);
-    }
-
     // Downsample if requested
     if let Some(n) = settings.downsample {
         filtered = downsample(filtered, n);
@@ -66,36 +61,34 @@ fn passes_quality_filter(read: &ReadMetrics, settings: &FilterSettings) -> bool 
     true
 }
 
-/// Drop outlier reads (top 0.1% by length)
-fn drop_outliers(mut reads: Vec<ReadMetrics>) -> Vec<ReadMetrics> {
-    if reads.is_empty() {
-        return reads;
+/// Clip reads to the given length percentile for plotting.
+/// Intended for plot data only — stats are always computed on the full filtered set.
+/// A percentile of 100.0 is a no-op.
+pub fn clip_to_percentile_for_plots(reads: &[ReadMetrics], percentile: f64) -> Vec<ReadMetrics> {
+    if reads.is_empty() || percentile >= 100.0 {
+        return reads.to_vec();
     }
 
-    // Sort by length to find the cutoff
     let mut lengths: Vec<u32> = reads.iter().map(|r| r.length).collect();
     lengths.sort_unstable();
 
-    // Calculate 99.9th percentile
-    let idx = (lengths.len() as f64 * 0.999) as usize;
-    let cutoff = lengths
-        .get(idx.min(lengths.len() - 1))
-        .copied()
-        .unwrap_or(u32::MAX);
+    let idx = ((percentile / 100.0) * lengths.len() as f64) as usize;
+    let cutoff = lengths[idx.min(lengths.len() - 1)];
 
     let before = reads.len();
-    reads.retain(|r| r.length <= cutoff);
-    let after = reads.len();
+    let clipped: Vec<ReadMetrics> = reads.iter().filter(|r| r.length <= cutoff).cloned().collect();
+    let after = clipped.len();
 
     if before > after {
         info!(
-            "Dropped {} outlier reads with length > {}",
+            "Clipped {} reads above the {:.0}th percentile (>{} bp) from plots",
             before - after,
+            percentile,
             cutoff
         );
     }
 
-    reads
+    clipped
 }
 
 /// Randomly downsample reads to N

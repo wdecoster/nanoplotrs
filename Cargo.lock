@@ -1400,7 +1400,8 @@ dependencies = [
 
 [[package]]
 name = "nanoget-rs"
-version = "0.1.0"
+version = "0.1.1"
+source = "git+https://github.com/wdecoster/nanoget-rs?rev=8277d37#8277d374af04c7b561966b71db7bd253c8100414"
 dependencies = [
  "anyhow",
  "bio",

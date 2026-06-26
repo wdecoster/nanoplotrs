@@ -6,15 +6,19 @@ use crate::plots::{save_plot, GeneratedPlot};
 use chrono::{DateTime, Utc};
 use kuva::backend::svg::SvgBackend;
 use kuva::plot::scatter::ScatterPlot;
-use kuva::plot::LinePlot;
+use kuva::plot::{LinePlot, ViolinPlot};
 use kuva::render::layout::Layout;
 use kuva::render::plots::Plot;
 use kuva::render::render::render_multiple;
 use nanoget_rs::ReadMetrics;
 use std::collections::HashMap;
 
-/// Time interval for binning (in seconds)
+/// Time interval for reads/pores plots (in seconds)
 const TIME_BIN_SECONDS: i64 = 600; // 10 minutes
+/// Time interval for violin plots (in seconds)
+const VIOLIN_BIN_SECONDS: i64 = 10800; // 3 hours
+/// Maximum number of violin groups to show (prevents label crowding)
+const MAX_VIOLIN_BINS: usize = 24;
 
 /// Maximum points to plot
 const MAX_TIME_POINTS: usize = 10_000;
@@ -74,7 +78,111 @@ pub fn generate_time_plots(reads: &[ReadMetrics], config: &Config) -> Result<Vec
         )?);
     }
 
+    // Violin plots over time
+    plots.push(create_length_violin_over_time(&reads_with_time, min_time, config)?);
+
+    let reads_with_qual: Vec<&ReadMetrics> = reads_with_time
+        .iter()
+        .filter(|r| r.quality.is_some())
+        .copied()
+        .collect();
+    if !reads_with_qual.is_empty() {
+        plots.push(create_quality_violin_over_time(&reads_with_qual, min_time, config)?);
+    }
+
     Ok(plots)
+}
+
+/// Bin reads by 3-hour intervals and return (label, values) pairs, capped at MAX_VIOLIN_BINS
+fn time_violin_bins<F>(
+    reads: &[&ReadMetrics],
+    min_time: DateTime<Utc>,
+    value_fn: F,
+) -> Vec<(String, Vec<f64>)>
+where
+    F: Fn(&ReadMetrics) -> Option<f64>,
+{
+    let mut bins: std::collections::BTreeMap<i64, Vec<f64>> = std::collections::BTreeMap::new();
+
+    for read in reads {
+        let secs = (read.start_time.unwrap() - min_time).num_seconds();
+        let bin = secs / VIOLIN_BIN_SECONDS;
+        if let Some(v) = value_fn(read) {
+            bins.entry(bin).or_default().push(v);
+        }
+    }
+
+    // Subsample bins evenly if there are too many
+    let all_bins: Vec<_> = bins.into_iter().collect();
+    let step = ((all_bins.len() as f64) / MAX_VIOLIN_BINS as f64).ceil() as usize;
+    let step = step.max(1);
+
+    all_bins
+        .into_iter()
+        .step_by(step)
+        .map(|(bin, values)| {
+            let hours = (bin * VIOLIN_BIN_SECONDS) as f64 / 3600.0;
+            (format!("{:.0}h", hours), values)
+        })
+        .collect()
+}
+
+fn create_length_violin_over_time(
+    reads: &[&ReadMetrics],
+    min_time: DateTime<Utc>,
+    config: &Config,
+) -> Result<GeneratedPlot> {
+    let title = "Read length over time";
+    let bins = time_violin_bins(reads, min_time, |r| Some(r.length as f64));
+
+    let mut plot = ViolinPlot::new().with_color(&config.color);
+    for (label, values) in bins {
+        plot = plot.with_group(label, values);
+    }
+
+    let plots = vec![Plot::Violin(plot)];
+    let layout = Layout::auto_from_plots(&plots)
+        .with_title(config.title.as_deref().unwrap_or(title))
+        .with_x_label("Time")
+        .with_y_label("Read length");
+
+    let svg = SvgBackend.render_scene(&render_multiple(plots, layout));
+    let path = save_plot(&svg, "LengthOverTime", config)?;
+
+    Ok(GeneratedPlot {
+        title: title.to_string(),
+        path,
+        svg_content: svg,
+    })
+}
+
+fn create_quality_violin_over_time(
+    reads: &[&ReadMetrics],
+    min_time: DateTime<Utc>,
+    config: &Config,
+) -> Result<GeneratedPlot> {
+    let title = "Read quality over time";
+    let bins = time_violin_bins(reads, min_time, |r| r.quality);
+
+    let mut plot = ViolinPlot::new().with_color(&config.color);
+    for (label, values) in bins {
+        plot = plot.with_group(label, values);
+    }
+
+    let plots = vec![Plot::Violin(plot)];
+    let layout = Layout::auto_from_plots(&plots)
+        .with_title(config.title.as_deref().unwrap_or(title))
+        .with_x_label("Time")
+        .with_y_label("Average read quality");
+
+    let svg = SvgBackend.render_scene(&render_multiple(plots, layout));
+    let path = save_plot(&svg, "QualityOverTime", config)?;
+
+    Ok(GeneratedPlot {
+        title: title.to_string(),
+        path,
+        svg_content: svg,
+    })
 }
 
 /// Create cumulative yield over time plot

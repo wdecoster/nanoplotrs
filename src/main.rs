@@ -7,6 +7,7 @@ use anyhow::Result;
 use clap::Parser;
 use log::error;
 use nanoplot::cli::Cli;
+use std::io::Write;
 
 fn main() -> Result<()> {
     // Parse command line arguments
@@ -21,7 +22,15 @@ fn main() -> Result<()> {
 
     env_logger::Builder::new()
         .filter_level(log_level)
-        .format_timestamp_secs()
+        .format(|buf, record| {
+            writeln!(
+                buf,
+                "{} {:5} {}",
+                chrono::Local::now().format("%Y-%m-%dT%H:%M:%S"),
+                record.level(),
+                record.args()
+            )
+        })
         .init();
 
     // Run NanoPlot

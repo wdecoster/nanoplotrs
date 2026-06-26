@@ -14,7 +14,7 @@ name = "nanoplot"
 path = "src/main.rs"
 
 [dependencies]
-nanoget-rs = { git = "https://github.com/wdecoster/nanoget-rs" }
+nanoget-rs = { git = "https://github.com/wdecoster/nanoget-rs", rev = "8277d37" }
 clap = { version = "4.6", features = ["derive"] }
 kuva = { version = "0.1", features = ["png", "pdf"] }
 anyhow = "1.0"
@@ -40,7 +40,3 @@ codegen-units = 1
 [profile.profiling]
 inherits = "release"
 debug = true
-
-# Override git dep with local checkout during development
-[patch."https://github.com/wdecoster/nanoget-rs"]
-nanoget-rs = { path = "../nanoget-rs" }

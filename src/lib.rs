@@ -32,7 +32,7 @@ pub mod stats;
 use crate::cli::Cli;
 use crate::config::{Config, FilterSettings};
 use crate::error::{NanoPlotError, Result};
-use crate::filter::filter_reads;
+use crate::filter::{clip_to_percentile_for_plots, filter_reads};
 use crate::plots::generate_plots;
 use crate::report::generate_html_report;
 use crate::stats::{write_raw_data, Stats};
@@ -87,7 +87,7 @@ pub fn run(cli: Cli) -> Result<()> {
         output: None,
         read_type: "1D".to_string(),
         barcoded: false,
-        keep_supplementary: true,
+        keep_supplementary: cli.use_supplementary,
         combine: "simple".to_string(),
         names: None,
     };
@@ -133,12 +133,19 @@ pub fn run(cli: Cli) -> Result<()> {
         stats.write_to_file(&config.output_path("NanoStats.tsv"))?;
         info!("Wrote statistics to NanoStats.tsv");
 
+        if config.json {
+            stats.write_json_to_file(&config.output_path("NanoStats.json"))?;
+            info!("Wrote statistics to NanoStats.json");
+        }
+
         if config.raw {
             write_raw_data(&filtered_reads, &config.output_path("NanoPlot-data.tsv"))?;
             info!("Wrote raw data to NanoPlot-data.tsv");
         }
 
-        let plots = generate_plots(&filtered_reads, &stats, &config)?;
+        // Percentile clip is plot-only: stats are always computed on the full filtered set.
+        let plot_reads = clip_to_percentile_for_plots(&filtered_reads, config.percentile);
+        let plots = generate_plots(&plot_reads, &stats, &config)?;
 
         generate_html_report(&plots, &stats, stats_before.as_ref(), &config)?;
         info!("Generated HTML report: NanoPlot-report.html");
