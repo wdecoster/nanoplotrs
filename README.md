@@ -4,43 +4,36 @@ Plotting and statistics for long-read sequencing data. Rust implementation of [N
 
 ## Installation
 
-Pre-built binaries are available on the [releases page](https://github.com/wdecoster/nanoplotrs/releases) for Linux (x86\_64 and ARM64), macOS (Intel and Apple Silicon), and Windows.
+Pre-built binaries are attached to each [release](https://github.com/wdecoster/nanoplotrs/releases) for Linux (x86\_64) and macOS. Download the binary, make it executable, and put it on your `PATH`.
 
-### Linux (x86\_64)
+### Linux (dynamically linked, glibc)
 
 ```bash
-curl -LO https://github.com/wdecoster/nanoplotrs/releases/latest/download/nanoplot-VERSION-x86_64-unknown-linux-gnu.tar.gz
-tar xzf nanoplot-VERSION-x86_64-unknown-linux-gnu.tar.gz
+curl -L -o nanoplot https://github.com/wdecoster/nanoplotrs/releases/latest/download/nanoplot-linux
+chmod +x nanoplot
 sudo mv nanoplot /usr/local/bin/
 ```
 
-### Linux (ARM64)
+### Linux (static, musl)
+
+Portable build with no glibc dependency — useful on older systems and minimal
+containers (when available; see notes below).
 
 ```bash
-curl -LO https://github.com/wdecoster/nanoplotrs/releases/latest/download/nanoplot-VERSION-aarch64-unknown-linux-gnu.tar.gz
-tar xzf nanoplot-VERSION-aarch64-unknown-linux-gnu.tar.gz
+curl -L -o nanoplot https://github.com/wdecoster/nanoplotrs/releases/latest/download/nanoplot-linux-musl
+chmod +x nanoplot
 sudo mv nanoplot /usr/local/bin/
 ```
 
-### macOS (Intel)
+### macOS
 
 ```bash
-curl -LO https://github.com/wdecoster/nanoplotrs/releases/latest/download/nanoplot-VERSION-x86_64-apple-darwin.tar.gz
-tar xzf nanoplot-VERSION-x86_64-apple-darwin.tar.gz
+curl -L -o nanoplot https://github.com/wdecoster/nanoplotrs/releases/latest/download/nanoplot-macos
+chmod +x nanoplot
 sudo mv nanoplot /usr/local/bin/
 ```
 
-### macOS (Apple Silicon)
-
-```bash
-curl -LO https://github.com/wdecoster/nanoplotrs/releases/latest/download/nanoplot-VERSION-aarch64-apple-darwin.tar.gz
-tar xzf nanoplot-VERSION-aarch64-apple-darwin.tar.gz
-sudo mv nanoplot /usr/local/bin/
-```
-
-### Windows
-
-Download `nanoplot-VERSION-x86_64-pc-windows-msvc.zip` from the [releases page](https://github.com/wdecoster/nanoplotrs/releases), extract the zip, and add the directory to your `PATH`.
+Windows is not shipped as a binary; use WSL (the Linux binary) or build from source.
 
 ### Build from source
 
