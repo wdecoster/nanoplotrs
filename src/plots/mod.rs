@@ -13,12 +13,38 @@ use nanoget_rs::ReadMetrics;
 use rayon::prelude::*;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 // Re-export for internal use
 use resvg;
 use tiny_skia;
 use usvg;
+
+/// DejaVu Sans, embedded in the binary so PNG/PDF rasterisation always has a
+/// font and never depends on system fonts (keeping the single-binary promise).
+static DEJAVU_SANS: &[u8] = include_bytes!("../../assets/fonts/DejaVuSans.ttf");
+
+/// Shared font database holding the embedded font. Built once; cheap to clone
+/// (it is an `Arc`), which matters because plots are rasterised in parallel.
+fn shared_fontdb() -> Arc<usvg::fontdb::Database> {
+    static FONTDB: OnceLock<Arc<usvg::fontdb::Database>> = OnceLock::new();
+    FONTDB
+        .get_or_init(|| {
+            let mut db = usvg::fontdb::Database::new();
+            db.load_font_data(DEJAVU_SANS.to_vec());
+            Arc::new(db)
+        })
+        .clone()
+}
+
+/// usvg options with the embedded font loaded and set as the default family.
+fn render_options() -> usvg::Options<'static> {
+    usvg::Options {
+        fontdb: shared_fontdb(),
+        font_family: "DejaVu Sans".to_string(),
+        ..Default::default()
+    }
+}
 
 /// A plot that has been generated
 #[derive(Debug, Clone)]
@@ -324,7 +350,7 @@ pub fn save_plot(svg: &str, base_name: &str, config: &Config) -> Result<PathBuf>
 
 /// Convert SVG string to PNG bytes
 fn svg_to_png(svg: &str, dpi: u32) -> Result<Vec<u8>> {
-    let opt = usvg::Options::default();
+    let opt = render_options();
     let tree = usvg::Tree::from_str(svg, &opt).map_err(|e| {
         crate::error::NanoPlotError::PlotError(format!("Failed to parse SVG: {}", e))
     })?;
@@ -347,7 +373,7 @@ fn svg_to_png(svg: &str, dpi: u32) -> Result<Vec<u8>> {
 
 /// Convert SVG string to PDF bytes
 fn svg_to_pdf(svg: &str) -> Result<Vec<u8>> {
-    let opt = usvg::Options::default();
+    let opt = render_options();
     let tree = usvg::Tree::from_str(svg, &opt).map_err(|e| {
         crate::error::NanoPlotError::PlotError(format!("Failed to parse SVG: {}", e))
     })?;
