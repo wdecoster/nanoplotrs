@@ -53,6 +53,7 @@ jobs:
       RUST_BACKTRACE: 1
 
     strategy:
+      fail-fast: false
       matrix:
         build: [linux, linux-arm, macos, macos-arm, win-msvc]
         include:
@@ -115,7 +116,7 @@ jobs:
           echo "target dir is: ${{ env.TARGET_DIR }}"
 
       - name: Build release binary
-        run: ${{ env.CARGO }} build --verbose --release ${{ env.TARGET_FLAGS }}
+        run: ${{ env.CARGO }} build --verbose --release --target ${{ matrix.target }}
 
       - name: Build archive
         shell: bash
