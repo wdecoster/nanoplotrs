@@ -48,7 +48,7 @@ pub fn create_histogram(
     // Start from 0 for non-negative data; scale bins like Python: max(round(max/500), 10)
     let range_min = if min_val >= 0.0 { 0.0 } else { min_val };
     let range_max = max_val + (max_val - range_min) * 0.01;
-    let num_bins = ((max_val / 500.0).round() as usize).max(10).min(200);
+    let num_bins = ((max_val / 500.0).round() as usize).clamp(10, 200);
     let tick_step = nice_tick_step(range_max - range_min, 5);
 
     let hist = Histogram::new()
@@ -92,7 +92,7 @@ pub fn create_weighted_histogram(
     let max_val = data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
     let range_min = if min_val >= 0.0 { 0.0 } else { min_val };
     let range_max = max_val + (max_val - range_min) * 0.01;
-    let num_bins = ((max_val / 500.0).round() as usize).max(10).min(200);
+    let num_bins = ((max_val / 500.0).round() as usize).clamp(10, 200);
     let tick_step = nice_tick_step(range_max - range_min, 5);
 
     let bin_width = (range_max - range_min) / num_bins as f64;
@@ -159,7 +159,7 @@ pub fn create_log_histogram(
     let range = (min_val.floor(), max_val.ceil());
     // Bins based on the log range (each unit = one order of magnitude)
     let num_bins = ((max_val - min_val) * 30.0).round() as usize;
-    let num_bins = num_bins.max(10).min(200);
+    let num_bins = num_bins.clamp(10, 200);
 
     let hist = Histogram::new()
         .with_data(log_data.to_vec())
@@ -230,7 +230,7 @@ pub fn create_log_weighted_histogram(
         .fold(f64::NEG_INFINITY, f64::max);
     let range = (min_val.floor(), max_val.ceil());
     let num_bins = ((max_val - min_val) * 30.0).round() as usize;
-    let num_bins = num_bins.max(10).min(200);
+    let num_bins = num_bins.clamp(10, 200);
 
     let bin_width = (range.1 - range.0) / num_bins as f64;
     let edges: Vec<f64> = (0..=num_bins)
@@ -302,9 +302,7 @@ pub fn create_identity_histogram(
     let range_min = min_val.floor().max(0.0);
     let range_max = 100.0;
     // 0.5% per bin over the actual data range
-    let num_bins = (((range_max - range_min) * 2.0).round() as usize)
-        .max(10)
-        .min(200);
+    let num_bins = (((range_max - range_min) * 2.0).round() as usize).clamp(10, 200);
 
     let hist = Histogram::new()
         .with_data(data.to_vec())
@@ -345,7 +343,7 @@ pub fn create_phred_histogram(
     // Convert to phred; skip values at exactly 100% (would be infinity)
     let phred_data: Vec<f64> = percent_identity
         .iter()
-        .filter(|&&p| p < 100.0 && p >= 0.0)
+        .filter(|&&p| (0.0..100.0).contains(&p))
         .map(|&p| -10.0 * (1.0 - p / 100.0).log10())
         .collect();
 
@@ -361,9 +359,7 @@ pub fn create_phred_histogram(
     // Start from the nearest integer below min; 0.5 phred per bin
     let range_min = min_val.floor().max(0.0);
     let range_max = max_val.ceil() + 1.0;
-    let num_bins = (((range_max - range_min) * 2.0).round() as usize)
-        .max(10)
-        .min(200);
+    let num_bins = (((range_max - range_min) * 2.0).round() as usize).clamp(10, 200);
 
     let hist = Histogram::new()
         .with_data(phred_data)
