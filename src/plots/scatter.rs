@@ -193,10 +193,22 @@ pub fn create_log_density2d(
         ));
     }
 
-    let x_min = valid_pairs.iter().map(|(x, _)| *x).fold(f64::INFINITY, f64::min);
-    let x_max = valid_pairs.iter().map(|(x, _)| *x).fold(f64::NEG_INFINITY, f64::max);
-    let y_min = valid_pairs.iter().map(|(_, y)| *y).fold(f64::INFINITY, f64::min);
-    let y_max = valid_pairs.iter().map(|(_, y)| *y).fold(f64::NEG_INFINITY, f64::max);
+    let x_min = valid_pairs
+        .iter()
+        .map(|(x, _)| *x)
+        .fold(f64::INFINITY, f64::min);
+    let x_max = valid_pairs
+        .iter()
+        .map(|(x, _)| *x)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let y_min = valid_pairs
+        .iter()
+        .map(|(_, y)| *y)
+        .fold(f64::INFINITY, f64::min);
+    let y_max = valid_pairs
+        .iter()
+        .map(|(_, y)| *y)
+        .fold(f64::NEG_INFINITY, f64::max);
     let x_range = (x_min.floor(), x_max.ceil());
     let y_range = (y_min.floor().max(0.0), y_max * 1.01);
 

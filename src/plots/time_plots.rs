@@ -79,7 +79,11 @@ pub fn generate_time_plots(reads: &[ReadMetrics], config: &Config) -> Result<Vec
     }
 
     // Violin plots over time
-    plots.push(create_length_violin_over_time(&reads_with_time, min_time, config)?);
+    plots.push(create_length_violin_over_time(
+        &reads_with_time,
+        min_time,
+        config,
+    )?);
 
     let reads_with_qual: Vec<&ReadMetrics> = reads_with_time
         .iter()
@@ -87,7 +91,11 @@ pub fn generate_time_plots(reads: &[ReadMetrics], config: &Config) -> Result<Vec
         .copied()
         .collect();
     if !reads_with_qual.is_empty() {
-        plots.push(create_quality_violin_over_time(&reads_with_qual, min_time, config)?);
+        plots.push(create_quality_violin_over_time(
+            &reads_with_qual,
+            min_time,
+            config,
+        )?);
     }
 
     Ok(plots)

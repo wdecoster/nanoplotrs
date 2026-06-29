@@ -220,8 +220,14 @@ pub fn create_log_weighted_histogram(
         ));
     }
 
-    let min_val = pairs.iter().map(|(lx, _)| *lx).fold(f64::INFINITY, f64::min);
-    let max_val = pairs.iter().map(|(lx, _)| *lx).fold(f64::NEG_INFINITY, f64::max);
+    let min_val = pairs
+        .iter()
+        .map(|(lx, _)| *lx)
+        .fold(f64::INFINITY, f64::min);
+    let max_val = pairs
+        .iter()
+        .map(|(lx, _)| *lx)
+        .fold(f64::NEG_INFINITY, f64::max);
     let range = (min_val.floor(), max_val.ceil());
     let num_bins = ((max_val - min_val) * 30.0).round() as usize;
     let num_bins = num_bins.max(10).min(200);
@@ -296,7 +302,9 @@ pub fn create_identity_histogram(
     let range_min = min_val.floor().max(0.0);
     let range_max = 100.0;
     // 0.5% per bin over the actual data range
-    let num_bins = (((range_max - range_min) * 2.0).round() as usize).max(10).min(200);
+    let num_bins = (((range_max - range_min) * 2.0).round() as usize)
+        .max(10)
+        .min(200);
 
     let hist = Histogram::new()
         .with_data(data.to_vec())
@@ -353,7 +361,9 @@ pub fn create_phred_histogram(
     // Start from the nearest integer below min; 0.5 phred per bin
     let range_min = min_val.floor().max(0.0);
     let range_max = max_val.ceil() + 1.0;
-    let num_bins = (((range_max - range_min) * 2.0).round() as usize).max(10).min(200);
+    let num_bins = (((range_max - range_min) * 2.0).round() as usize)
+        .max(10)
+        .min(200);
 
     let hist = Histogram::new()
         .with_data(phred_data)
@@ -378,4 +388,3 @@ pub fn create_phred_histogram(
         svg_content: svg,
     })
 }
-

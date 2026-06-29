@@ -76,7 +76,11 @@ pub fn clip_to_percentile_for_plots(reads: &[ReadMetrics], percentile: f64) -> V
     let cutoff = lengths[idx.min(lengths.len() - 1)];
 
     let before = reads.len();
-    let clipped: Vec<ReadMetrics> = reads.iter().filter(|r| r.length <= cutoff).cloned().collect();
+    let clipped: Vec<ReadMetrics> = reads
+        .iter()
+        .filter(|r| r.length <= cutoff)
+        .cloned()
+        .collect();
     let after = clipped.len();
 
     if before > after {

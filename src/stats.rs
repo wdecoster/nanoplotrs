@@ -11,9 +11,7 @@ use std::path::Path;
 const QUALITY_CUTOFFS: [f64; 5] = [5.0, 7.0, 10.0, 12.0, 15.0];
 /// Read-length cutoffs (bases) for the "reads above threshold" table.
 /// Cutoffs at or above the longest read are skipped (they would always be zero).
-const LENGTH_CUTOFFS: [u64; 7] = [
-    10_000, 25_000, 50_000, 100_000, 200_000, 500_000, 1_000_000,
-];
+const LENGTH_CUTOFFS: [u64; 7] = [10_000, 25_000, 50_000, 100_000, 200_000, 500_000, 1_000_000];
 
 /// Aggregate for one "reads above a cutoff" row: how many reads clear the cutoff,
 /// what fraction of all reads that is, and how many megabases they account for.
@@ -83,7 +81,11 @@ fn compute_quality_thresholds(reads: &[ReadMetrics], num_reads: usize) -> Vec<Th
     QUALITY_CUTOFFS
         .iter()
         .map(|&cutoff| {
-            let bases: u64 = pairs.iter().filter(|(q, _)| *q >= cutoff).map(|(_, l)| *l).sum();
+            let bases: u64 = pairs
+                .iter()
+                .filter(|(q, _)| *q >= cutoff)
+                .map(|(_, l)| *l)
+                .sum();
             let count = pairs.iter().filter(|(q, _)| *q >= cutoff).count();
             ThresholdStat {
                 cutoff,
@@ -96,7 +98,11 @@ fn compute_quality_thresholds(reads: &[ReadMetrics], num_reads: usize) -> Vec<Th
 }
 
 /// Count reads clearing each length cutoff (below the maximum), with fraction and megabases.
-fn compute_length_thresholds(lengths: &[u32], num_reads: usize, max_length: u32) -> Vec<ThresholdStat> {
+fn compute_length_thresholds(
+    lengths: &[u32],
+    num_reads: usize,
+    max_length: u32,
+) -> Vec<ThresholdStat> {
     LENGTH_CUTOFFS
         .iter()
         .filter(|&&cutoff| cutoff < max_length as u64)
@@ -265,7 +271,10 @@ impl Stats {
         s.push_str(&format!("  \"num_reads\": {},\n", self.num_reads));
         s.push_str(&format!("  \"total_bases\": {},\n", self.total_bases));
         s.push_str(&format!("  \"mean_length\": {:.1},\n", self.mean_length));
-        s.push_str(&format!("  \"median_length\": {:.1},\n", self.median_length));
+        s.push_str(&format!(
+            "  \"median_length\": {:.1},\n",
+            self.median_length
+        ));
         s.push_str(&format!("  \"stdev_length\": {:.1},\n", self.stdev_length));
         s.push_str(&format!("  \"min_length\": {},\n", self.min_length));
         s.push_str(&format!("  \"max_length\": {},\n", self.max_length));
