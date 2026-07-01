@@ -10,8 +10,8 @@ use kuva::plot::Histogram2D;
 use kuva::render::layout::{Layout, TickFormat};
 use kuva::render::plots::Plot;
 use kuva::render::render::render_multiple;
-use rand::seq::SliceRandom;
 use rand::rng;
+use rand::seq::SliceRandom;
 use std::sync::Arc;
 
 /// Maximum number of points to plot (for performance)

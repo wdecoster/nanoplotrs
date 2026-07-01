@@ -3,8 +3,8 @@
 use crate::config::FilterSettings;
 use log::info;
 use nanoget_rs::ReadMetrics;
-use rand::seq::SliceRandom;
 use rand::rng;
+use rand::seq::SliceRandom;
 
 /// Apply filters to a collection of reads
 pub fn filter_reads(reads: Vec<ReadMetrics>, settings: &FilterSettings) -> Vec<ReadMetrics> {
