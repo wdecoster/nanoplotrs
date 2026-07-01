@@ -85,7 +85,7 @@ install-hooks:
 	@echo "💡 The hooks will now run automatically on commit and push"
 
 # Run all pre-push checks manually
-pre-push: fmt clippy
+pre-push: fmt-check clippy
 	@echo "🎉 All pre-push checks passed!"
 
 # Benchmark (if benchmarks exist)
@@ -93,7 +93,7 @@ bench:
 	cargo bench
 
 # Check everything is ready for commit
-pre-commit: fmt clippy test
+pre-commit: fmt-check clippy test
 	@echo "Ready for commit!"
 
 # Show help
