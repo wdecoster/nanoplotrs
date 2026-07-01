@@ -3,8 +3,8 @@
 use crate::config::FilterSettings;
 use log::info;
 use nanoget_rs::ReadMetrics;
+use rand::rng;
 use rand::seq::SliceRandom;
-use rand::thread_rng;
 
 /// Apply filters to a collection of reads
 pub fn filter_reads(reads: Vec<ReadMetrics>, settings: &FilterSettings) -> Vec<ReadMetrics> {
@@ -101,7 +101,7 @@ fn downsample(mut reads: Vec<ReadMetrics>, n: usize) -> Vec<ReadMetrics> {
         return reads;
     }
 
-    let mut rng = thread_rng();
+    let mut rng = rng();
     reads.shuffle(&mut rng);
     reads.truncate(n);
 

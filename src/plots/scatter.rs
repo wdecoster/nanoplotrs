@@ -10,8 +10,8 @@ use kuva::plot::Histogram2D;
 use kuva::render::layout::{Layout, TickFormat};
 use kuva::render::plots::Plot;
 use kuva::render::render::render_multiple;
+use rand::rng;
 use rand::seq::SliceRandom;
-use rand::thread_rng;
 use std::sync::Arc;
 
 /// Maximum number of points to plot (for performance)
@@ -92,7 +92,7 @@ pub fn create_log_scatter(
 
     // Downsample if too many points
     let data = if valid_pairs.len() > MAX_SCATTER_POINTS {
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut pairs = valid_pairs;
         pairs.shuffle(&mut rng);
         pairs.truncate(MAX_SCATTER_POINTS);
@@ -260,7 +260,7 @@ fn config_colormap(config: &Config) -> ColorMap {
 
 /// Randomly downsample paired data points
 fn downsample_points(x: &[f64], y: &[f64], n: usize) -> (Vec<f64>, Vec<f64>) {
-    let mut rng = thread_rng();
+    let mut rng = rng();
     let mut indices: Vec<usize> = (0..x.len()).collect();
     indices.shuffle(&mut rng);
     indices.truncate(n);
