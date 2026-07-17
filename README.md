@@ -4,14 +4,14 @@ Plotting and statistics for long-read sequencing data. Rust implementation of [N
 
 ## Installation
 
-Pre-built binaries are attached to each [release](https://github.com/wdecoster/nanoplotrs/releases) for Linux (x86\_64) and macOS. Download the binary, make it executable, and put it on your `PATH`.
+Pre-built binaries are attached to each [release](https://github.com/wdecoster/nanoplotrs/releases) for Linux (x86\_64) and macOS. Download the binary, make it executable, and move it to any directory on your `PATH` — `~/.local/bin` works without root, `/usr/local/bin` if you have it.
 
 ### Linux (dynamically linked, glibc)
 
 ```bash
 curl -L -o nanoplot https://github.com/wdecoster/nanoplotrs/releases/latest/download/nanoplot-linux
 chmod +x nanoplot
-sudo mv nanoplot /usr/local/bin/
+mv nanoplot ~/.local/bin/
 ```
 
 ### Linux (static, musl)
@@ -22,7 +22,7 @@ containers (when available; see notes below).
 ```bash
 curl -L -o nanoplot https://github.com/wdecoster/nanoplotrs/releases/latest/download/nanoplot-linux-musl
 chmod +x nanoplot
-sudo mv nanoplot /usr/local/bin/
+mv nanoplot ~/.local/bin/
 ```
 
 ### macOS
@@ -30,7 +30,7 @@ sudo mv nanoplot /usr/local/bin/
 ```bash
 curl -L -o nanoplot https://github.com/wdecoster/nanoplotrs/releases/latest/download/nanoplot-macos
 chmod +x nanoplot
-sudo mv nanoplot /usr/local/bin/
+mv nanoplot ~/.local/bin/
 ```
 
 Windows is not shipped as a binary; use WSL (the Linux binary) or build from source.
