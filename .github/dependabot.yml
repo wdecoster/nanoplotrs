@@ -1,6 +1,11 @@
+# Dependabot configuration.
+# Tuned per GitHub's "tame Dependabot" guidance: batch version updates into a
+# few grouped PRs on a slow (monthly) cadence, with a release cooldown. Security
+# updates ignore groups/schedule and still open immediately.
+
 version: 2
 updates:
-  # Enable version updates for Cargo
+  # Cargo (Rust)
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
@@ -13,6 +18,19 @@ updates:
     commit-message:
       prefix: "cargo"
       include: "scope"
+    # Minor+patch land together; majors are grouped separately so one breaking
+    # bump can't wedge the routine batch.
+    groups:
+      cargo-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      cargo-major:
+        patterns: ["*"]
+        update-types: ["major"]
+    # Wait a few days after a release before opening a version-update PR, so a
+    # compromised fresh release has time to be flagged.
+    cooldown:
+      default-days: 7
     # resvg / usvg / tiny-skia are pinned as a coupled set by svg2pdf, whose
     # latest release (0.13) still requires usvg ^0.45 / resvg ^0.45 /
     # tiny-skia ^0.11.4. The PNG (resvg) and PDF (svg2pdf) paths share one
@@ -26,11 +44,11 @@ updates:
       - dependency-name: "tiny-skia"
         versions: [">= 0.12"]
 
-  # Enable version updates for GitHub Actions
+  # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     open-pull-requests-limit: 5
     reviewers:
       - "wdecoster"
@@ -39,3 +57,8 @@ updates:
     commit-message:
       prefix: "ci"
       include: "scope"
+    groups:
+      github-actions:
+        patterns: ["*"]
+    cooldown:
+      default-days: 7
