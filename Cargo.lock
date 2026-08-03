@@ -175,7 +175,7 @@ dependencies = [
  "statrs",
  "strum",
  "strum_macros",
- "thiserror 2.0.18",
+ "thiserror 2.0.19",
  "triple_accel",
  "vec_map",
 ]
@@ -1435,7 +1435,7 @@ dependencies = [
  "serde",
  "serde_json",
  "statrs",
- "thiserror 2.0.18",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -1455,7 +1455,7 @@ dependencies = [
  "resvg",
  "svg2pdf",
  "tempfile",
- "thiserror 2.0.18",
+ "thiserror 2.0.19",
  "tiny-skia",
  "usvg",
 ]
@@ -1981,7 +1981,7 @@ dependencies = [
  "linear-map",
  "newtype_derive",
  "regex",
- "thiserror 2.0.18",
+ "thiserror 2.0.19",
  "url",
 ]
 
@@ -2301,6 +2301,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "syn"
+version = "3.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53e9bae58849f64dfa4f5d5ae372c8341f7305f82a3868709269343628b659a3"
+dependencies = [
+ "proc-macro2 1.0.106",
+ "quote 1.0.45",
+ "unicode-ident",
+]
+
+[[package]]
 name = "synstructure"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2335,11 +2346,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.18"
+version = "2.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4288b5bcbc7920c07a1149a35cf9590a2aa808e0bc1eafaade0b80947865fbc4"
+checksum = "09a43598840e33d5b0331f38c5e30d13bb11c11210a4b58f0d9b18a5a5eefcd9"
 dependencies = [
- "thiserror-impl 2.0.18",
+ "thiserror-impl 2.0.19",
 ]
 
 [[package]]
@@ -2355,13 +2366,13 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.18"
+version = "2.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebc4ee7f67670e9b64d05fa4253e753e016c6c95ff35b89b7941d6b856dec1d5"
+checksum = "43cbfe0cf76104d42a574802844187e84a305e531ed54455f11fbde0f10541cd"
 dependencies = [
  "proc-macro2 1.0.106",
  "quote 1.0.45",
- "syn 2.0.117",
+ "syn 3.0.3",
 ]
 
 [[package]]
