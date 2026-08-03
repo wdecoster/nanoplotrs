@@ -13,6 +13,18 @@ updates:
     commit-message:
       prefix: "cargo"
       include: "scope"
+    # resvg / usvg / tiny-skia are pinned as a coupled set by svg2pdf, whose
+    # latest release (0.13) still requires usvg ^0.45 / resvg ^0.45 /
+    # tiny-skia ^0.11.4. The PNG (resvg) and PDF (svg2pdf) paths share one
+    # usvg::Tree, so these cannot move past 0.45/0.11 until svg2pdf updates.
+    # Remove these ignores once a svg2pdf release supports usvg >= 0.47.
+    ignore:
+      - dependency-name: "usvg"
+        versions: [">= 0.46"]
+      - dependency-name: "resvg"
+        versions: [">= 0.46"]
+      - dependency-name: "tiny-skia"
+        versions: [">= 0.12"]
 
   # Enable version updates for GitHub Actions
   - package-ecosystem: "github-actions"
