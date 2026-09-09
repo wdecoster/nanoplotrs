@@ -81,14 +81,14 @@ pub fn run(cli: Cli) -> Result<()> {
 
     let extract_args = ExtractArgs {
         files,
-        file_type,
+        file_type: Some(file_type),
         threads: cli.threads,
-        output_format: "json".to_string(),
+        output_format: nanoget_rs::OutputFormat::Json,
         output: None,
-        read_type: "1D".to_string(),
+        read_type: nanoget_rs::ReadType::OneD,
         barcoded: false,
         keep_supplementary: cli.use_supplementary,
-        combine: "simple".to_string(),
+        combine: nanoget_rs::CombineMethod::Simple,
         names: None,
     };
 
@@ -100,29 +100,25 @@ pub fn run(cli: Cli) -> Result<()> {
 
     pool.install(|| -> Result<()> {
         let metrics: MetricsCollection = extract_metrics(&extract_args)?;
-        info!("Extracted metrics for {} reads", metrics.reads.len());
+        info!("Extracted metrics for {} reads", metrics.len());
 
-        if metrics.reads.is_empty() {
+        if metrics.is_empty() {
             return Err(NanoPlotError::NoReadsAfterFilter);
         }
 
-        // Determine which data types are present from the actual metrics.
-        for r in &metrics.reads {
-            config.has_quality |= r.quality.is_some();
-            config.has_time_data |= r.start_time.is_some();
-            config.has_alignment |= r.aligned_length.is_some();
-            if config.has_quality && config.has_time_data && config.has_alignment {
-                break;
-            }
-        }
+        // Which data types are present is a property of the columns, so it is answered
+        // once from the layout rather than by scanning every read.
+        config.has_quality |= metrics.reads.has_quality();
+        config.has_time_data |= metrics.reads.has_time();
+        config.has_alignment |= metrics.reads.has_alignment();
 
         let stats_before = if filter_settings.has_filters() {
-            Some(Stats::compute(&metrics.reads))
+            Some(Stats::compute(&metrics))
         } else {
             None
         };
 
-        let filtered_reads = filter_reads(metrics.reads, &filter_settings);
+        let filtered_reads = filter_reads(metrics, &filter_settings);
 
         if filtered_reads.is_empty() {
             return Err(NanoPlotError::NoReadsAfterFilter);
@@ -143,9 +139,11 @@ pub fn run(cli: Cli) -> Result<()> {
             info!("Wrote raw data to NanoPlot-data.tsv");
         }
 
-        // Percentile clip is plot-only: stats are always computed on the full filtered set.
-        let plot_reads = clip_to_percentile_for_plots(&filtered_reads, config.percentile);
-        let plots = generate_plots(&plot_reads, &stats, &config)?;
+        // Percentile clip is plot-only: stats are always computed on the full filtered
+        // set. When nothing is clipped no copy is made and the filtered set is used.
+        let clipped = clip_to_percentile_for_plots(&filtered_reads, config.percentile);
+        let plot_reads = clipped.as_ref().unwrap_or(&filtered_reads);
+        let plots = generate_plots(plot_reads, &stats, &config)?;
 
         generate_html_report(&plots, &stats, stats_before.as_ref(), &config)?;
         info!("Generated HTML report: NanoPlot-report.html");

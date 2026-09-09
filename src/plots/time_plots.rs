@@ -10,7 +10,7 @@ use kuva::plot::{LinePlot, ViolinPlot};
 use kuva::render::layout::Layout;
 use kuva::render::plots::Plot;
 use kuva::render::render::render_multiple;
-use nanoget_rs::ReadMetrics;
+use nanoget_rs::{MetricsCollection, ReadView};
 use std::collections::HashMap;
 
 /// Time interval for reads/pores plots (in seconds)
@@ -24,12 +24,17 @@ const MAX_VIOLIN_BINS: usize = 24;
 const MAX_TIME_POINTS: usize = 10_000;
 
 /// Generate all time-based plots
-pub fn generate_time_plots(reads: &[ReadMetrics], config: &Config) -> Result<Vec<GeneratedPlot>> {
+pub fn generate_time_plots(
+    collection: &MetricsCollection,
+    config: &Config,
+) -> Result<Vec<GeneratedPlot>> {
     let mut plots = Vec::new();
 
     // Filter reads with valid start times
-    let reads_with_time: Vec<&ReadMetrics> =
-        reads.iter().filter(|r| r.start_time.is_some()).collect();
+    let reads_with_time: Vec<ReadView<'_>> = collection
+        .iter()
+        .filter(|r| r.start_time().is_some())
+        .collect();
 
     if reads_with_time.is_empty() {
         return Ok(plots);
@@ -38,7 +43,7 @@ pub fn generate_time_plots(reads: &[ReadMetrics], config: &Config) -> Result<Vec
     // Get the earliest start time as reference
     let min_time = reads_with_time
         .iter()
-        .filter_map(|r| r.start_time)
+        .filter_map(|r| r.start_time())
         .min()
         .unwrap();
 
@@ -64,9 +69,9 @@ pub fn generate_time_plots(reads: &[ReadMetrics], config: &Config) -> Result<Vec
     )?);
 
     // Active pores over time (if channel data available)
-    let reads_with_channel: Vec<&ReadMetrics> = reads_with_time
+    let reads_with_channel: Vec<ReadView<'_>> = reads_with_time
         .iter()
-        .filter(|r| r.channel_id.is_some())
+        .filter(|r| r.channel_id().is_some())
         .copied()
         .collect();
 
@@ -85,9 +90,9 @@ pub fn generate_time_plots(reads: &[ReadMetrics], config: &Config) -> Result<Vec
         config,
     )?);
 
-    let reads_with_qual: Vec<&ReadMetrics> = reads_with_time
+    let reads_with_qual: Vec<ReadView<'_>> = reads_with_time
         .iter()
-        .filter(|r| r.quality.is_some())
+        .filter(|r| r.quality().is_some())
         .copied()
         .collect();
     if !reads_with_qual.is_empty() {
@@ -103,17 +108,17 @@ pub fn generate_time_plots(reads: &[ReadMetrics], config: &Config) -> Result<Vec
 
 /// Bin reads by 3-hour intervals and return (label, values) pairs, capped at MAX_VIOLIN_BINS
 fn time_violin_bins<F>(
-    reads: &[&ReadMetrics],
+    reads: &[ReadView<'_>],
     min_time: DateTime<Utc>,
     value_fn: F,
 ) -> Vec<(String, Vec<f64>)>
 where
-    F: Fn(&ReadMetrics) -> Option<f64>,
+    F: Fn(&ReadView<'_>) -> Option<f64>,
 {
     let mut bins: std::collections::BTreeMap<i64, Vec<f64>> = std::collections::BTreeMap::new();
 
     for read in reads {
-        let secs = (read.start_time.unwrap() - min_time).num_seconds();
+        let secs = (read.start_time().unwrap() - min_time).num_seconds();
         let bin = secs / VIOLIN_BIN_SECONDS;
         if let Some(v) = value_fn(read) {
             bins.entry(bin).or_default().push(v);
@@ -136,12 +141,12 @@ where
 }
 
 fn create_length_violin_over_time(
-    reads: &[&ReadMetrics],
+    reads: &[ReadView<'_>],
     min_time: DateTime<Utc>,
     config: &Config,
 ) -> Result<GeneratedPlot> {
     let title = "Read length over time";
-    let bins = time_violin_bins(reads, min_time, |r| Some(r.length as f64));
+    let bins = time_violin_bins(reads, min_time, |r| Some(r.length() as f64));
 
     let mut plot = ViolinPlot::new().with_color(&config.color);
     for (label, values) in bins {
@@ -165,12 +170,12 @@ fn create_length_violin_over_time(
 }
 
 fn create_quality_violin_over_time(
-    reads: &[&ReadMetrics],
+    reads: &[ReadView<'_>],
     min_time: DateTime<Utc>,
     config: &Config,
 ) -> Result<GeneratedPlot> {
     let title = "Read quality over time";
-    let bins = time_violin_bins(reads, min_time, |r| r.quality);
+    let bins = time_violin_bins(reads, min_time, |r| r.quality());
 
     let mut plot = ViolinPlot::new().with_color(&config.color);
     for (label, values) in bins {
@@ -195,7 +200,7 @@ fn create_quality_violin_over_time(
 
 /// Create cumulative yield over time plot
 fn create_cumulative_yield_plot(
-    reads: &[&ReadMetrics],
+    reads: &[ReadView<'_>],
     min_time: DateTime<Utc>,
     config: &Config,
 ) -> Result<GeneratedPlot> {
@@ -203,15 +208,15 @@ fn create_cumulative_yield_plot(
 
     // Sort reads by start time
     let mut sorted_reads: Vec<_> = reads.iter().collect();
-    sorted_reads.sort_by_key(|r| r.start_time.unwrap());
+    sorted_reads.sort_by_key(|r| r.start_time().unwrap());
 
     // Calculate cumulative yield
     let mut data: Vec<(f64, f64)> = Vec::with_capacity(sorted_reads.len());
     let mut cum_yield = 0.0;
 
     for read in sorted_reads {
-        let time_hours = (read.start_time.unwrap() - min_time).num_seconds() as f64 / 3600.0;
-        cum_yield += read.length as f64 / 1e9; // Convert to Gb
+        let time_hours = (read.start_time().unwrap() - min_time).num_seconds() as f64 / 3600.0;
+        cum_yield += read.length() as f64 / 1e9; // Convert to Gb
         data.push((time_hours, cum_yield));
     }
 
@@ -238,7 +243,7 @@ fn create_cumulative_yield_plot(
 
 /// Create cumulative read count over time plot
 fn create_cumulative_reads_plot(
-    reads: &[&ReadMetrics],
+    reads: &[ReadView<'_>],
     min_time: DateTime<Utc>,
     config: &Config,
 ) -> Result<GeneratedPlot> {
@@ -246,13 +251,13 @@ fn create_cumulative_reads_plot(
 
     // Sort reads by start time
     let mut sorted_reads: Vec<_> = reads.iter().collect();
-    sorted_reads.sort_by_key(|r| r.start_time.unwrap());
+    sorted_reads.sort_by_key(|r| r.start_time().unwrap());
 
     // Calculate cumulative count
     let mut data: Vec<(f64, f64)> = Vec::with_capacity(sorted_reads.len());
 
     for (i, read) in sorted_reads.iter().enumerate() {
-        let time_hours = (read.start_time.unwrap() - min_time).num_seconds() as f64 / 3600.0;
+        let time_hours = (read.start_time().unwrap() - min_time).num_seconds() as f64 / 3600.0;
         data.push((time_hours, (i + 1) as f64));
     }
 
@@ -279,7 +284,7 @@ fn create_cumulative_reads_plot(
 
 /// Create reads over time plot (binned by 10-minute intervals)
 fn create_reads_over_time_plot(
-    reads: &[&ReadMetrics],
+    reads: &[ReadView<'_>],
     min_time: DateTime<Utc>,
     config: &Config,
 ) -> Result<GeneratedPlot> {
@@ -289,7 +294,7 @@ fn create_reads_over_time_plot(
     let mut bins: HashMap<i64, usize> = HashMap::new();
 
     for read in reads {
-        let time_seconds = (read.start_time.unwrap() - min_time).num_seconds();
+        let time_seconds = (read.start_time().unwrap() - min_time).num_seconds();
         let bin = time_seconds / TIME_BIN_SECONDS;
         *bins.entry(bin).or_insert(0) += 1;
     }
@@ -327,7 +332,7 @@ fn create_reads_over_time_plot(
 
 /// Create active pores over time plot
 fn create_active_pores_plot(
-    reads: &[&ReadMetrics],
+    reads: &[ReadView<'_>],
     min_time: DateTime<Utc>,
     config: &Config,
 ) -> Result<GeneratedPlot> {
@@ -337,9 +342,9 @@ fn create_active_pores_plot(
     let mut bins: HashMap<i64, std::collections::HashSet<u16>> = HashMap::new();
 
     for read in reads {
-        let time_seconds = (read.start_time.unwrap() - min_time).num_seconds();
+        let time_seconds = (read.start_time().unwrap() - min_time).num_seconds();
         let bin = time_seconds / TIME_BIN_SECONDS;
-        if let Some(channel) = read.channel_id {
+        if let Some(channel) = read.channel_id() {
             bins.entry(bin).or_default().insert(channel);
         }
     }

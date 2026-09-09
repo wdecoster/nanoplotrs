@@ -1,7 +1,7 @@
 //! Statistics computation for sequencing reads
 
 use crate::error::Result;
-use nanoget_rs::ReadMetrics;
+use nanoget_rs::MetricsCollection;
 use std::fmt::Write as FmtWrite;
 use std::fs::File;
 use std::io::Write;
@@ -70,10 +70,19 @@ fn thresholds_to_json(items: &[ThresholdStat]) -> String {
 }
 
 /// Count reads clearing each quality cutoff, with their fraction and megabases.
-fn compute_quality_thresholds(reads: &[ReadMetrics], num_reads: usize) -> Vec<ThresholdStat> {
-    let pairs: Vec<(f64, u64)> = reads
+fn compute_quality_thresholds(
+    collection: &MetricsCollection,
+    num_reads: usize,
+) -> Vec<ThresholdStat> {
+    let Some(qualities) = collection.reads.qualities_raw() else {
+        return Vec::new();
+    };
+    let lengths = collection.reads.lengths();
+    let pairs: Vec<(f64, u64)> = qualities
         .iter()
-        .filter_map(|r| r.quality.map(|q| (q, r.length as u64)))
+        .zip(lengths)
+        .filter(|(q, _)| q.is_finite())
+        .map(|(&q, &l)| (f64::from(q), l as u64))
         .collect();
     if pairs.is_empty() {
         return Vec::new();
@@ -125,25 +134,26 @@ fn compute_length_thresholds(
 
 impl Stats {
     /// Compute statistics from a collection of reads
-    pub fn compute(reads: &[ReadMetrics]) -> Self {
-        if reads.is_empty() {
+    pub fn compute(collection: &MetricsCollection) -> Self {
+        if collection.is_empty() {
             return Self::empty();
         }
 
-        let num_reads = reads.len();
-        let lengths: Vec<u32> = reads.iter().map(|r| r.length).collect();
+        let num_reads = collection.len();
+        // Columns are borrowed, not projected out of a sequence of structs.
+        let lengths: &[u32] = collection.reads.lengths();
         let total_bases: u64 = lengths.iter().map(|&l| l as u64).sum();
 
         // Length statistics
         let mean_length = total_bases as f64 / num_reads as f64;
-        let median_length = median(&lengths);
-        let stdev_length = std_dev(&lengths, mean_length);
+        let median_length = median(lengths);
+        let stdev_length = std_dev(lengths, mean_length);
         let min_length = *lengths.iter().min().unwrap_or(&0);
         let max_length = *lengths.iter().max().unwrap_or(&0);
-        let n50 = calculate_n50(&lengths, total_bases);
+        let n50 = calculate_n50(lengths, total_bases);
 
         // Quality statistics
-        let qualities: Vec<f64> = reads.iter().filter_map(|r| r.quality).collect();
+        let qualities: Vec<f64> = finite_values(collection.reads.qualities_raw());
         let (mean_quality, median_quality) = if !qualities.is_empty() {
             (
                 Some(qualities.iter().sum::<f64>() / qualities.len() as f64),
@@ -154,15 +164,20 @@ impl Stats {
         };
 
         // Alignment statistics
-        let aligned_lengths: Vec<u32> = reads.iter().filter_map(|r| r.aligned_length).collect();
-        let total_aligned_bases = if !aligned_lengths.is_empty() {
-            Some(aligned_lengths.iter().map(|&l| l as u64).sum())
-        } else {
-            None
-        };
+        // Present whenever any read has an aligned length, even if every one is zero —
+        // the row means "this input is aligned", not "the total is non-zero".
+        let total_aligned_bases = collection.reads.aligned_lengths_raw().and_then(|column| {
+            let mut any = false;
+            let total: u64 = column
+                .iter()
+                .filter(|&&l| l != u32::MAX)
+                .inspect(|_| any = true)
+                .map(|&l| l as u64)
+                .sum();
+            any.then_some(total)
+        });
 
-        let percent_identities: Vec<f64> =
-            reads.iter().filter_map(|r| r.percent_identity).collect();
+        let percent_identities: Vec<f64> = finite_values(collection.reads.percent_identities_raw());
         let (mean_percent_identity, median_percent_identity) = if !percent_identities.is_empty() {
             (
                 Some(percent_identities.iter().sum::<f64>() / percent_identities.len() as f64),
@@ -172,8 +187,8 @@ impl Stats {
             (None, None)
         };
 
-        let quality_thresholds = compute_quality_thresholds(reads, num_reads);
-        let length_thresholds = compute_length_thresholds(&lengths, num_reads, max_length);
+        let quality_thresholds = compute_quality_thresholds(collection, num_reads);
+        let length_thresholds = compute_length_thresholds(lengths, num_reads, max_length);
 
         Self {
             num_reads,
@@ -392,8 +407,20 @@ fn std_dev(values: &[u32], mean: f64) -> f64 {
     variance.sqrt()
 }
 
+/// Collect the finite entries of a column, dropping the `NaN`s that mark absence.
+fn finite_values(column: Option<&[f32]>) -> Vec<f64> {
+    column
+        .map(|c| {
+            c.iter()
+                .filter(|v| v.is_finite())
+                .map(|&v| f64::from(v))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// Write raw read data to TSV file
-pub fn write_raw_data(reads: &[ReadMetrics], path: &Path) -> Result<()> {
+pub fn write_raw_data(collection: &MetricsCollection, path: &Path) -> Result<()> {
     let mut file = File::create(path)?;
 
     // Header
@@ -403,27 +430,29 @@ pub fn write_raw_data(reads: &[ReadMetrics], path: &Path) -> Result<()> {
     )?;
 
     // Data rows
-    for read in reads {
+    for read in collection.iter() {
         writeln!(
             file,
             "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
-            read.read_id.as_deref().unwrap_or(""),
-            read.length,
-            read.quality
+            read.read_id().unwrap_or(""),
+            read.length(),
+            read.quality()
                 .map(|q| format!("{:.2}", q))
                 .unwrap_or_default(),
-            read.aligned_length
+            read.aligned_length()
                 .map(|l| l.to_string())
                 .unwrap_or_default(),
-            read.mapping_quality
+            read.mapping_quality()
                 .map(|q| q.to_string())
                 .unwrap_or_default(),
-            read.percent_identity
+            read.percent_identity()
                 .map(|p| format!("{:.2}", p))
                 .unwrap_or_default(),
-            read.channel_id.map(|c| c.to_string()).unwrap_or_default(),
-            read.start_time.map(|t| t.to_rfc3339()).unwrap_or_default(),
-            read.barcode.as_deref().unwrap_or(""),
+            read.channel_id().map(|c| c.to_string()).unwrap_or_default(),
+            read.start_time()
+                .map(|t| t.to_rfc3339())
+                .unwrap_or_default(),
+            read.barcode().unwrap_or(""),
         )?;
     }
 
@@ -434,8 +463,12 @@ pub fn write_raw_data(reads: &[ReadMetrics], path: &Path) -> Result<()> {
 mod tests {
     use super::*;
 
-    fn make_reads(lengths: &[u32]) -> Vec<ReadMetrics> {
-        lengths.iter().map(|&l| ReadMetrics::new(None, l)).collect()
+    fn make_reads(lengths: &[u32]) -> MetricsCollection {
+        let mut builder = nanoget_rs::ReadColumnsBuilder::with_capacity(lengths.len());
+        for &l in lengths {
+            builder.push(nanoget_rs::ReadMetrics::new(None, l));
+        }
+        MetricsCollection::new(builder.finish())
     }
 
     #[test]
