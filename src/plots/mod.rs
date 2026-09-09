@@ -9,7 +9,7 @@ use crate::config::Config;
 use crate::error::Result;
 use crate::stats::Stats;
 use log::info;
-use nanoget_rs::ReadMetrics;
+use nanoget_rs::MetricsCollection;
 use rayon::prelude::*;
 use std::fs;
 use std::path::PathBuf;
@@ -59,14 +59,21 @@ pub struct GeneratedPlot {
 
 /// Generate all plots for the given reads
 pub fn generate_plots(
-    reads: &[ReadMetrics],
+    collection: &MetricsCollection,
     stats: &Stats,
     config: &Config,
 ) -> Result<Vec<GeneratedPlot>> {
-    info!("Generating plots for {} reads", reads.len());
+    info!("Generating plots for {} reads", collection.len());
 
     // Pre-compute shared data; wrap in Arc so closures can share without cloning the data.
-    let lengths = Arc::new(reads.iter().map(|r| r.length as f64).collect::<Vec<_>>());
+    let lengths = Arc::new(
+        collection
+            .reads
+            .lengths()
+            .iter()
+            .map(|&l| l as f64)
+            .collect::<Vec<_>>(),
+    );
     let log_lengths: Vec<f64> = lengths
         .iter()
         .filter(|&&l| l > 0.0)
@@ -154,18 +161,21 @@ pub fn generate_plots(
     }
 
     // Length vs Quality scatter
-    let reads_with_qual: Vec<_> = reads.iter().filter(|r| r.quality.is_some()).collect();
+    let reads_with_qual: Vec<_> = collection
+        .iter()
+        .filter(|r| r.quality().is_some())
+        .collect();
     if !reads_with_qual.is_empty() {
         let lq = Arc::new(
             reads_with_qual
                 .iter()
-                .map(|r| r.length as f64)
+                .map(|r| r.length() as f64)
                 .collect::<Vec<_>>(),
         );
         let qq = Arc::new(
             reads_with_qual
                 .iter()
-                .filter_map(|r| r.quality)
+                .filter_map(|r| r.quality())
                 .collect::<Vec<_>>(),
         );
         {
@@ -224,21 +234,21 @@ pub fn generate_plots(
 
     // Alignment-specific plots
     if config.has_alignment {
-        let reads_with_mapq: Vec<_> = reads
+        let reads_with_mapq: Vec<_> = collection
             .iter()
-            .filter(|r| r.mapping_quality.is_some())
+            .filter(|r| r.mapping_quality().is_some())
             .collect();
         if !reads_with_mapq.is_empty() {
             let lm = Arc::new(
                 reads_with_mapq
                     .iter()
-                    .map(|r| r.length as f64)
+                    .map(|r| r.length() as f64)
                     .collect::<Vec<_>>(),
             );
             let mq = Arc::new(
                 reads_with_mapq
                     .iter()
-                    .filter_map(|r| r.mapping_quality.map(|q| q as f64))
+                    .filter_map(|r| r.mapping_quality().map(|q| q as f64))
                     .collect::<Vec<_>>(),
             );
             {
@@ -296,21 +306,21 @@ pub fn generate_plots(
         }
 
         // Aligned read length vs sequenced read length
-        let reads_with_aln: Vec<_> = reads
+        let reads_with_aln: Vec<_> = collection
             .iter()
-            .filter(|r| r.aligned_length.is_some())
+            .filter(|r| r.aligned_length().is_some())
             .collect();
         if !reads_with_aln.is_empty() {
             let seq_len = Arc::new(
                 reads_with_aln
                     .iter()
-                    .map(|r| r.length as f64)
+                    .map(|r| r.length() as f64)
                     .collect::<Vec<_>>(),
             );
             let aln_len = Arc::new(
                 reads_with_aln
                     .iter()
-                    .filter_map(|r| r.aligned_length.map(|l| l as f64))
+                    .filter_map(|r| r.aligned_length().map(|l| l as f64))
                     .collect::<Vec<_>>(),
             );
             let (seq_len, aln_len, config) =
@@ -340,13 +350,16 @@ pub fn generate_plots(
             }));
         }
 
-        let percent_ids: Vec<f64> = reads.iter().filter_map(|r| r.percent_identity).collect();
+        let percent_ids: Vec<f64> = collection
+            .iter()
+            .filter_map(|r| r.percent_identity())
+            .collect();
         if !percent_ids.is_empty() {
             let lp = Arc::new(
-                reads
+                collection
                     .iter()
-                    .filter(|r| r.percent_identity.is_some())
-                    .map(|r| r.length as f64)
+                    .filter(|r| r.percent_identity().is_some())
+                    .map(|r| r.length() as f64)
                     .collect::<Vec<_>>(),
             );
             let pi = Arc::new(percent_ids);
@@ -435,7 +448,7 @@ pub fn generate_plots(
 
     // Time plots are appended after — they return multiple plots and are rarely present
     if config.has_time_data {
-        plots.extend(time_plots::generate_time_plots(reads, config)?);
+        plots.extend(time_plots::generate_time_plots(collection, config)?);
     }
 
     info!("Generated {} plots", plots.len());
