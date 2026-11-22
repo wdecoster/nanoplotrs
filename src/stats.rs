@@ -450,7 +450,7 @@ pub fn write_raw_data(collection: &MetricsCollection, path: &Path) -> Result<()>
                 .unwrap_or_default(),
             read.channel_id().map(|c| c.to_string()).unwrap_or_default(),
             read.start_time()
-                .map(|t| t.to_rfc3339())
+                .map(nanoget_rs::metrics::to_rfc3339)
                 .unwrap_or_default(),
             read.barcode().unwrap_or(""),
         )?;

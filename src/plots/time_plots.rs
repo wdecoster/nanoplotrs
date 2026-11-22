@@ -3,7 +3,7 @@
 use crate::config::Config;
 use crate::error::Result;
 use crate::plots::{save_plot, GeneratedPlot};
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use kuva::backend::svg::SvgBackend;
 use kuva::plot::scatter::ScatterPlot;
 use kuva::plot::{LinePlot, ViolinPlot};
@@ -109,7 +109,7 @@ pub fn generate_time_plots(
 /// Bin reads by 3-hour intervals and return (label, values) pairs, capped at MAX_VIOLIN_BINS
 fn time_violin_bins<F>(
     reads: &[ReadView<'_>],
-    min_time: DateTime<Utc>,
+    min_time: Timestamp,
     value_fn: F,
 ) -> Vec<(String, Vec<f64>)>
 where
@@ -118,7 +118,11 @@ where
     let mut bins: std::collections::BTreeMap<i64, Vec<f64>> = std::collections::BTreeMap::new();
 
     for read in reads {
-        let secs = (read.start_time().unwrap() - min_time).num_seconds();
+        let secs = read
+            .start_time()
+            .unwrap()
+            .duration_since(min_time)
+            .as_secs();
         let bin = secs / VIOLIN_BIN_SECONDS;
         if let Some(v) = value_fn(read) {
             bins.entry(bin).or_default().push(v);
@@ -142,7 +146,7 @@ where
 
 fn create_length_violin_over_time(
     reads: &[ReadView<'_>],
-    min_time: DateTime<Utc>,
+    min_time: Timestamp,
     config: &Config,
 ) -> Result<GeneratedPlot> {
     let title = "Read length over time";
@@ -171,7 +175,7 @@ fn create_length_violin_over_time(
 
 fn create_quality_violin_over_time(
     reads: &[ReadView<'_>],
-    min_time: DateTime<Utc>,
+    min_time: Timestamp,
     config: &Config,
 ) -> Result<GeneratedPlot> {
     let title = "Read quality over time";
@@ -201,7 +205,7 @@ fn create_quality_violin_over_time(
 /// Create cumulative yield over time plot
 fn create_cumulative_yield_plot(
     reads: &[ReadView<'_>],
-    min_time: DateTime<Utc>,
+    min_time: Timestamp,
     config: &Config,
 ) -> Result<GeneratedPlot> {
     let title = "Cumulative yield over time";
@@ -215,7 +219,12 @@ fn create_cumulative_yield_plot(
     let mut cum_yield = 0.0;
 
     for read in sorted_reads {
-        let time_hours = (read.start_time().unwrap() - min_time).num_seconds() as f64 / 3600.0;
+        let time_hours = read
+            .start_time()
+            .unwrap()
+            .duration_since(min_time)
+            .as_secs() as f64
+            / 3600.0;
         cum_yield += read.length() as f64 / 1e9; // Convert to Gb
         data.push((time_hours, cum_yield));
     }
@@ -244,7 +253,7 @@ fn create_cumulative_yield_plot(
 /// Create cumulative read count over time plot
 fn create_cumulative_reads_plot(
     reads: &[ReadView<'_>],
-    min_time: DateTime<Utc>,
+    min_time: Timestamp,
     config: &Config,
 ) -> Result<GeneratedPlot> {
     let title = "Cumulative read count over time";
@@ -257,7 +266,12 @@ fn create_cumulative_reads_plot(
     let mut data: Vec<(f64, f64)> = Vec::with_capacity(sorted_reads.len());
 
     for (i, read) in sorted_reads.iter().enumerate() {
-        let time_hours = (read.start_time().unwrap() - min_time).num_seconds() as f64 / 3600.0;
+        let time_hours = read
+            .start_time()
+            .unwrap()
+            .duration_since(min_time)
+            .as_secs() as f64
+            / 3600.0;
         data.push((time_hours, (i + 1) as f64));
     }
 
@@ -285,7 +299,7 @@ fn create_cumulative_reads_plot(
 /// Create reads over time plot (binned by 10-minute intervals)
 fn create_reads_over_time_plot(
     reads: &[ReadView<'_>],
-    min_time: DateTime<Utc>,
+    min_time: Timestamp,
     config: &Config,
 ) -> Result<GeneratedPlot> {
     let title = "Number of reads over time";
@@ -294,7 +308,11 @@ fn create_reads_over_time_plot(
     let mut bins: HashMap<i64, usize> = HashMap::new();
 
     for read in reads {
-        let time_seconds = (read.start_time().unwrap() - min_time).num_seconds();
+        let time_seconds = read
+            .start_time()
+            .unwrap()
+            .duration_since(min_time)
+            .as_secs();
         let bin = time_seconds / TIME_BIN_SECONDS;
         *bins.entry(bin).or_insert(0) += 1;
     }
@@ -333,7 +351,7 @@ fn create_reads_over_time_plot(
 /// Create active pores over time plot
 fn create_active_pores_plot(
     reads: &[ReadView<'_>],
-    min_time: DateTime<Utc>,
+    min_time: Timestamp,
     config: &Config,
 ) -> Result<GeneratedPlot> {
     let title = "Active pores over time";
@@ -342,7 +360,11 @@ fn create_active_pores_plot(
     let mut bins: HashMap<i64, std::collections::HashSet<u16>> = HashMap::new();
 
     for read in reads {
-        let time_seconds = (read.start_time().unwrap() - min_time).num_seconds();
+        let time_seconds = read
+            .start_time()
+            .unwrap()
+            .duration_since(min_time)
+            .as_secs();
         let bin = time_seconds / TIME_BIN_SECONDS;
         if let Some(channel) = read.channel_id() {
             bins.entry(bin).or_default().insert(channel);
