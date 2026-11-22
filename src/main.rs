@@ -26,7 +26,7 @@ fn main() -> Result<()> {
             writeln!(
                 buf,
                 "{} {:5} {}",
-                chrono::Local::now().format("%Y-%m-%dT%H:%M:%S"),
+                jiff::Zoned::now().strftime("%Y-%m-%dT%H:%M:%S"),
                 record.level(),
                 record.args()
             )
